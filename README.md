@@ -24,29 +24,27 @@ An unofficial open-source web port of **Point Blank** (desktop-to-web porting ex
 
 1. **Install dependencies:**
 
-   ```powershell
-   npm run install:all
-
+```
+npm run install:all
 ```
 
 2. **Download assets (e.g., Tag 0.0.1):**
-```bash
-npm run download -- --assets --0.0.1
 
+```
+npm run download -- --assets --0.0.1
 ```
 
 
 3. **Set up environment:**
-```bash
-cp server/.env.example server/.env.local
 
+```
+cp server/.env.example server/.env.local
 ```
 
 
 4. **Run the application:**
-```bash
+```
 npm start
-
 ```
 
 
