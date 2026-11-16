@@ -16,7 +16,7 @@ An unofficial open-source web port of **Point Blank** (desktop-to-web porting ex
 | :--- | :--- |
 | **Node.js** | Version 22.18+ (Node 24 recommended) |
 | **Database** | PostgreSQL 16+ or Docker (Port `5433` / `5432`) |
-| **Assets** | Download automatically via `npm run download -- --assets --<tag>` or place assets manually in the `public/assets/` folder |
+| **Assets** | [Download](https://github.com/fitri-hy/PBLabs/releases) automatically via `npm run download -- --assets --<tag>` or place assets manually in the `public/assets/` folder |
 
 ---
 
