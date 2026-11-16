@@ -13,9 +13,19 @@ An unofficial open-source web port of **Point Blank** (desktop-to-web porting ex
 
 | Component | Description |
 | :--- | :--- |
-| **Node.js** | Version 22.18+ (Node 24 recommended) |
-| **Database** | PostgreSQL 16+ or Docker (Port `5433` / `5432`) |
-| **Assets** | Place Point Blank assets in the `public/assets/` folder |
+| **Node.js** | Version 22.18+ (Node.js 24 recommended) |
+| **Database** | PostgreSQL 16+ or Docker (Ports `5433` / `5432`) |
+| **Assets** | Point Blank assets in `public/assets/` |
+
+## Download & Extract Assets
+
+1. Download **all ZIP parts** from [GitHub Releases](https://github.com/fitri-hy/PBLabs/releases).
+2. Place all downloaded parts in the same folder.
+3. Open the main `.zip` file using WinRAR or 7-Zip.
+4. Select **Extract Here** or **Extract to...**.
+5. Move the extracted assets into `public/assets/`.
+
+**Important:** All ZIP parts are required. Do not rename or delete any parts before extraction.
 
 ---
 
