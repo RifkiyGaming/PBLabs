@@ -1,0 +1,16 @@
+import { readFileSync } from "node:fs";
+const t = readFileSync("C:/Users/USER/.openclaw/workspace/PointBlank/point-blank-webport/db/init/001_init.sql", "utf8");
+const lines = t.split(/\r?\n/);
+console.log("total lines", lines.length);
+const cop = lines.map((l, i) => [/^COPY /.test(l) ? i : -1]).filter((x) => x[0] >= 0).map((x) => x[0]);
+console.log("COPY count:", cop.length, "first:", cop.slice(0, 5).join(","));
+console.log("--- sample COPY ctx ---");
+console.log(lines.slice(cop[0] - 1, cop[0] + 3).join("\n"));
+console.log("--- counts ---");
+console.log("DROP:", (t.match(/\bDROP \b/g) || []).length);
+console.log("CREATE TABLE:", (t.match(/CREATE TABLE/g) || []).length);
+console.log("IF NOT EXISTS:", (t.match(/CREATE TABLE IF NOT EXISTS/g) || []).length);
+console.log("--- first 5 / last 8 lines ---");
+console.log(lines.slice(0, 5).join("\n"));
+console.log("...");
+console.log(lines.slice(-8).join("\n"));

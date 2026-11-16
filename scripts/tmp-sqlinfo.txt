@@ -1,0 +1,7 @@
+lines=21559
+copyCount=55
+firstCopy=COPY public.anticheat_dlls (id, dll_name, description, detection_type, action, added_by, added_at) FROM stdin;
+drop=0
+createTable=115
+ifNotExists=0
+last3=["SELECT pg_catalog.setval('public.anticheat_processes_id_seq', 13, true);","SELECT pg_catalog.setval('public.system_shop_limited_id_seq', 1, false);",""]

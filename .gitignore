@@ -1,0 +1,15 @@
+node_modules/
+server/node_modules/
+package-lock.json
+server/package-lock.json
+dist/
+server/dist/
+*.tsbuildinfo
+.vite/
+/public/assets/
+.env.local
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+nul

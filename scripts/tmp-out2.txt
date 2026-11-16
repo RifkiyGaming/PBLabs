@@ -1,0 +1,26 @@
+﻿total lines 21559
+COPY count: 55 first: 3565,3583,3603,3614,3629
+--- sample COPY ctx ---
+
+COPY public.anticheat_dlls (id, dll_name, description, detection_type, action, added_by, added_at) FROM stdin;
+1	speedhack.dll	Cheat Engine Speedhack	block	ban	system	2025-03-17 00:26:15.820204
+2	d3d9_hook.dll	Direct3D 9 Hook	block	ban	system	2025-03-17 00:26:15.820204
+--- counts ---
+DROP: 0
+CREATE TABLE: 115
+IF NOT EXISTS: 0
+--- first 5 / last 8 lines ---
+-- Point Blank web port: database schema and game/system data (generated from the migrations, then pg_dump).
+-- Runs once, on the first start of an empty Postgres volume (docker-entrypoint-initdb.d).
+-- Contains no accounts, no player rows and no backup tables. Reset: docker compose down -v (see README).
+--
+-- PostgreSQL database dump
+...
+\unrestrict KDuOduG9CFwhiOlP1Gve8SGxDk7FosyGVBdUd4hYUeRRsXkGKTmlhOkWZpDtaKi
+
+
+-- ---- sequences ----
+SELECT pg_catalog.setval('public.anticheat_dlls_id_seq', 10, true);
+SELECT pg_catalog.setval('public.anticheat_processes_id_seq', 13, true);
+SELECT pg_catalog.setval('public.system_shop_limited_id_seq', 1, false);
+

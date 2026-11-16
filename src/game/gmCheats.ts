@@ -1,0 +1,82 @@
+// GM-only client tools (wallhack, ESP, god mode, one-hit, infinite ammo, no reload / recoil / spread, rapid fire, noclip,
+// speed / jump / damage / time multipliers). Client-side only, like the rest of the GM surface: EVERY effect must be read
+// through gmActive(), which returns null unless Game's gate says "this account really is a GM"
+// (server GM role online; ?gm=1 only counts offline). Flipping the flags without the gate does nothing.
+//   panel (gmPanel.ts, F8)  -> writes gmCheats / calls runGmAction()
+//   game.ts / player.ts / weapons/WeaponSystem.ts / nameTags.ts -> read gmActive()
+import type { Vector3 } from "three";
+
+export type GmToggleKey =
+  | "wallhack" | "esp" | "god" | "onehit"
+  | "infAmmo" | "noReload" | "noRecoil" | "noSpread" | "rapidFire"
+  | "noclip"
+  | "wallbang" | "autoHead" | "silentAim" | "trigger" | "radar" | "noFall";
+export type GmCheatKey = GmToggleKey; // kept for older imports
+
+export interface GmCheatState extends Record<GmToggleKey, boolean> {
+  /** ESP overlay parts */
+  espBox: boolean; espSnap: boolean; espName: boolean; espHp: boolean;
+  /** multipliers (1 = off) */
+  speedMult: number; jumpMult: number; damageMult: number; timeScale: number; rapidFireMult: number;
+  /** noclip flight speed, m/s */
+  flySpeed: number;
+  /** silent-aim cone, degrees; aimVisible = only targets with a clear line of sight */
+  aimFov: number; aimVisible: boolean;
+}
+
+const DEFAULTS: GmCheatState = {
+  wallhack: false, esp: false, god: false, onehit: false,
+  infAmmo: false, noReload: false, noRecoil: false, noSpread: false, rapidFire: false, noclip: false,
+  espBox: true, espSnap: true, espName: true, espHp: true,
+  speedMult: 1, jumpMult: 1, damageMult: 1, timeScale: 1, rapidFireMult: 3,
+  flySpeed: 12,
+  aimFov: 15, aimVisible: true,
+  wallbang: false, autoHead: false, silentAim: false, trigger: false, radar: false, noFall: false,
+};
+
+/** live state; everything off at load and after resetGmCheats() */
+export const gmCheats: GmCheatState = { ...DEFAULTS };
+
+export const GM_CHEAT_LABELS: Record<GmToggleKey, string> = {
+  wallhack: "Wallhack / Chams (models through walls)",
+  esp: "ESP (box, snaplines, nick + distance, HP)",
+  god: "God mode (no damage taken)",
+  onehit: "One-hit kill",
+  infAmmo: "Infinite ammo",
+  noReload: "No reload (instant)",
+  noRecoil: "No recoil",
+  noSpread: "No spread (100% accuracy)",
+  rapidFire: "Rapid fire",
+  noclip: "Noclip / fly (W A S D, Space up, Ctrl down)",
+  wallbang: "Wallbang (bullets pass through walls)",
+  autoHead: "Auto headshot (every hit counts as head)",
+  silentAim: "Silent aim (bullets go to the nearest enemy head)",
+  trigger: "Triggerbot (fires when an enemy is on target)",
+  radar: "Radar hack (all enemies on the minimap)",
+  noFall: "No fall damage",
+};
+
+/** damage sent for a one-hit kill (applied in Game.applyHit, only for shots of the local GM) */
+export const GM_ONEHIT_DAMAGE = 9999;
+
+/** hotkeys handled in game.ts (F8 = panel is in gmPanel.ts); pointer must be locked, local player alive */
+export const GM_HOTKEYS = { teleport: "Delete", noclip: "End" } as const;
+
+/** hooks installed by Game, read by WeaponSystem: aimDir returns the shot direction of the silent-aim target (a SHARED vector: clone it) or null */
+export const gmHooks: { aimDir: ((origin: Vector3, fwd: Vector3) => Vector3 | null) | null } = { aimDir: null };
+
+// ---- gate ------------------------------------------------------------------------------------------------------------
+let gate: () => boolean = () => false;
+/** Game installs the real check (server GM role); anything not installed = no cheats */
+export function setGmGate(fn: () => boolean): void { gate = fn; }
+/** the ONLY way other modules should read the cheats: null = not a GM (or not in a match) */
+export function gmActive(): GmCheatState | null { return gate() ? gmCheats : null; }
+
+// ---- one-shot actions (teleport, give ...) ----------------------------------------------------------------------------
+export type GmActionKey = "teleport" | "heal" | "helmet" | "refillAmmo" | "killBots" | "tpEnemy" | "respawn";
+const actions: Partial<Record<GmActionKey, () => void>> = {};
+export function registerGmActions(a: Partial<Record<GmActionKey, () => void>>): void { Object.assign(actions, a); }
+export function runGmAction(k: GmActionKey): void { if (gate()) actions[k]?.(); }
+
+/** every cheat off (match end / panel dispose) */
+export function resetGmCheats(): void { Object.assign(gmCheats, DEFAULTS); }
