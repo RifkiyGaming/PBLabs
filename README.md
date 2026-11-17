@@ -28,10 +28,10 @@ An unofficial open-source web port of **Point Blank** (desktop-to-web porting ex
 npm run install:all
 ```
 
-2. **Download assets (e.g., Tag 0.0.1):**
+2. **Download assets (e.g., Tag 0.0.2):**
 
 ```
-npm run download -- --assets --0.0.1
+npm run download -- --assets --0.0.2
 ```
 
 
