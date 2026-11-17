@@ -1,4 +1,3 @@
-
 import type { Caption, Control, SceneJson } from "./format.ts";
 import type { LoadedSheet } from "./assets.ts";
 import { ensureUiFont, FONTS } from "./assets.ts";
@@ -81,57 +80,6 @@ const CSS = `
 
 .pbui-disabled {
   cursor: default;
-}
-
-/* Mobile rotation overlay */
-.pbui-rotate {
-  position: absolute;
-  inset: 0;
-  z-index: 999999;
-  display: none;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  gap: 22px;
-  background: #080a10;
-  color: #fff;
-  font-family: Arial, sans-serif;
-  text-align: center;
-  padding: 24px;
-  box-sizing: border-box;
-}
-
-.pbui-rotate-icon {
-  font-size: 64px;
-  animation: pbui-rotate-animation 2s ease-in-out infinite;
-}
-
-.pbui-rotate-title {
-  font-size: 21px;
-  font-weight: bold;
-}
-
-.pbui-rotate-description {
-  color: #aeb5c5;
-  font-size: 13px;
-  max-width: 280px;
-  line-height: 1.6;
-}
-
-.pbui-rotate-button {
-  background: linear-gradient(135deg, #ffbd52, #e78319);
-  color: #17110a;
-  border: 0;
-  border-radius: 7px;
-  padding: 13px 26px;
-  font-weight: bold;
-  font-size: 14px;
-  cursor: pointer;
-}
-
-@keyframes pbui-rotate-animation {
-  0%, 20% { transform: rotate(0deg); }
-  70%, 100% { transform: rotate(90deg); }
 }
 
 @media (max-width: 600px) {
@@ -395,36 +343,22 @@ export class RenderedScene {
 }
 
 /* ==========================================
-   MOBILE LANDSCAPE STAGE
+   RESPONSIVE STAGE
 ========================================== */
 
 const STRETCH_MAX_ASPECT = 16 / 9;
 const STRETCH_MIN_ASPECT = 4 / 3;
 
-interface OrientationLock {
-  lock?: (orientation: string) => Promise<void>;
-}
-
 export class Stage {
   readonly el: HTMLElement;
   readonly design: HTMLElement;
 
-  private rotateOverlay: HTMLElement;
-  private rotateButton: HTMLButtonElement;
-
   private ro: ResizeObserver | null = null;
-  private mobile = false;
-  private isPortrait = false;
-  private lockAttempted = false;
 
   scale = 1;
   scaleY = 1;
 
   private readonly handleResize = () => {
-    this.fit();
-  };
-
-  private readonly handleOrientation = () => {
     this.fit();
   };
 
@@ -446,41 +380,6 @@ export class Stage {
     this.design.style.height = `${dh}px`;
 
     this.el.appendChild(this.design);
-
-    // Rotation instruction overlay.
-    this.rotateOverlay = document.createElement("div");
-    this.rotateOverlay.className = "pbui-rotate";
-
-    const rotateIcon = document.createElement("div");
-    rotateIcon.className = "pbui-rotate-icon";
-    rotateIcon.textContent = "📱";
-
-    const rotateTitle = document.createElement("div");
-    rotateTitle.className = "pbui-rotate-title";
-    rotateTitle.textContent = "Rotate Your Device";
-
-    const rotateDescription = document.createElement("div");
-    rotateDescription.className = "pbui-rotate-description";
-    rotateDescription.textContent =
-      "PBLabs is designed for landscape orientation. " +
-      "Please rotate your phone to a horizontal position.";
-
-    this.rotateButton = document.createElement("button");
-    this.rotateButton.className = "pbui-rotate-button";
-    this.rotateButton.textContent = "Enable Landscape Mode";
-
-    this.rotateButton.addEventListener("click", () => {
-      void this.requestLandscape();
-    });
-
-    this.rotateOverlay.append(
-      rotateIcon,
-      rotateTitle,
-      rotateDescription,
-      this.rotateButton
-    );
-
-    this.el.appendChild(this.rotateOverlay);
     this.host.appendChild(this.el);
 
     this.fit();
@@ -489,70 +388,13 @@ export class Stage {
     this.ro.observe(this.el);
 
     window.addEventListener("resize", this.handleResize);
-    window.addEventListener("orientationchange", this.handleOrientation);
+    window.addEventListener("orientationchange", this.handleResize);
 
     if (screen.orientation) {
       screen.orientation.addEventListener(
         "change",
-        this.handleOrientation
+        this.handleResize
       );
-    }
-
-    // Try locking after the first user interaction.
-    this.el.addEventListener(
-      "pointerdown",
-      this.handleFirstInteraction,
-      { once: true }
-    );
-  }
-
-  private handleFirstInteraction = () => {
-    if (this.mobile && !this.lockAttempted) {
-      this.lockAttempted = true;
-      void this.requestLandscape();
-    }
-  };
-
-  /**
-   * Request landscape orientation.
-   * Browser may reject this when fullscreen/user activation is required.
-   */
-  async requestLandscape(): Promise<boolean> {
-    try {
-      const orientation =
-        screen.orientation as ScreenOrientation & OrientationLock;
-
-      if (orientation.lock) {
-        await orientation.lock("landscape");
-        return true;
-      }
-    } catch (error) {
-      console.info(
-        "[pbui] Landscape lock unavailable. Rotate manually.",
-        error
-      );
-    }
-
-    return false;
-  }
-
-  private detectMobile(): boolean {
-    const coarse =
-      window.matchMedia("(pointer: coarse)").matches;
-
-    const smallScreen =
-      Math.min(window.innerWidth, window.innerHeight) <= 600;
-
-    return coarse || smallScreen;
-  }
-
-  private updateOrientationUI(): void {
-    if (this.mobile && this.isPortrait) {
-      this.rotateOverlay.style.display = "flex";
-      this.design.style.visibility = "hidden";
-    } else {
-      this.rotateOverlay.style.display = "none";
-      this.design.style.visibility = "visible";
     }
   }
 
@@ -562,11 +404,6 @@ export class Stage {
 
     const H =
       this.el.clientHeight || window.innerHeight;
-
-    this.mobile = this.detectMobile();
-    this.isPortrait = H > W;
-
-    this.updateOrientationUI();
 
     // Original pixel mode.
     if (this.stretch === "px") {
@@ -601,8 +438,7 @@ export class Stage {
       return;
     }
 
-    // Mobile landscape and desktop:
-    // Maintain original aspect ratio, never stretch.
+    // Maintain original aspect ratio in both portrait and landscape.
     const scaleX = W / this.dw;
     const scaleY = H / this.dh;
 
@@ -664,17 +500,12 @@ export class Stage {
 
     window.removeEventListener(
       "orientationchange",
-      this.handleOrientation
+      this.handleResize
     );
 
     screen.orientation?.removeEventListener(
       "change",
-      this.handleOrientation
-    );
-
-    this.el.removeEventListener(
-      "pointerdown",
-      this.handleFirstInteraction
+      this.handleResize
     );
 
     this.el.remove();
