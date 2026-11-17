@@ -7,7 +7,7 @@
 import type { Vector3 } from "three";
 
 export type GmToggleKey =
-  | "wallhack" | "esp" | "god" | "onehit"
+  | "wallhack" | "esp" | "god" 
   | "infAmmo" | "noReload" | "noRecoil" | "noSpread" | "rapidFire"
   | "noclip"
   | "wallbang" | "autoHead" | "silentAim" | "trigger" | "radar" | "noFall";
@@ -25,7 +25,7 @@ export interface GmCheatState extends Record<GmToggleKey, boolean> {
 }
 
 const DEFAULTS: GmCheatState = {
-  wallhack: false, esp: false, god: false, onehit: false,
+  wallhack: false, esp: false, god: false,
   infAmmo: false, noReload: false, noRecoil: false, noSpread: false, rapidFire: false, noclip: false,
   espBox: true, espSnap: true, espName: true, espHp: true,
   speedMult: 1, jumpMult: 1, damageMult: 1, timeScale: 1, rapidFireMult: 3,
@@ -41,7 +41,6 @@ export const GM_CHEAT_LABELS: Record<GmToggleKey, string> = {
   wallhack: "Wallhack / Chams (models through walls)",
   esp: "ESP (box, snaplines, nick + distance, HP)",
   god: "God mode (no damage taken)",
-  onehit: "One-hit kill",
   infAmmo: "Infinite ammo",
   noReload: "No reload (instant)",
   noRecoil: "No recoil",
@@ -55,9 +54,6 @@ export const GM_CHEAT_LABELS: Record<GmToggleKey, string> = {
   radar: "Radar hack (all enemies on the minimap)",
   noFall: "No fall damage",
 };
-
-/** damage sent for a one-hit kill (applied in Game.applyHit, only for shots of the local GM) */
-export const GM_ONEHIT_DAMAGE = 9999;
 
 /** hotkeys handled in game.ts (F8 = panel is in gmPanel.ts); pointer must be locked, local player alive */
 export const GM_HOTKEYS = { teleport: "Delete", noclip: "End" } as const;

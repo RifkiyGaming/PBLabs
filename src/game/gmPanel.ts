@@ -417,7 +417,7 @@ export class GmPanel extends Modal {
       chk.addEventListener("click", () => { gmCheats.aimVisible = !gmCheats.aimVisible; paint(); });
       this.paintCheats.push(paint); paint(); vis.appendChild(chk); }
     this.body.appendChild(vis);
-    group("Combat", ["wallbang", "onehit", "infAmmo", "noReload", "noRecoil", "noSpread", "rapidFire"]);
+    group("Combat", ["wallbang", "infAmmo", "noReload", "noRecoil", "noSpread", "rapidFire"]);
     this.body.appendChild(slider("Damage x", "damageMult", 1, 20, 1));
     this.body.appendChild(slider("Fire rate x", "rapidFireMult", 1, 10, 0.5));
     group("Player / movement", ["god", "noclip", "noFall"]);

@@ -18,7 +18,7 @@ import { DEFAULT_WATCH, WATCH, observerRules, type ObserverRules } from "../lobb
 import { DEAD_TARGET_HOLD, FLY_SPEED, OBS_CAM, entryView, flyMove, hpColumns, hpFill, hpRowY, nextAfterDead, nextView, observeList, observedNickText, stepTarget, type ObsView } from "./observer";
 import { ObserverHud } from "./pbHud/observerHud";
 import { chat } from "../net/chatClient";
-import { GM_HOTKEYS, GM_ONEHIT_DAMAGE, gmActive, gmCheats, gmHooks, registerGmActions, resetGmCheats, setGmGate, type GmCheatState } from "./gmCheats";
+import { GM_HOTKEYS, gmActive, gmCheats, gmHooks, registerGmActions, resetGmCheats, setGmGate, type GmCheatState } from "./gmCheats";
 import { GmChams } from "./gmChams";
 import { GmEsp } from "./gmEsp";
 import { NICK_SIZE, PosSlots, flySpeedStep, gmAction, gmNickView, nickSizeStep } from "./observerGm";
@@ -837,7 +837,7 @@ export class Game implements BotHost {
   }
 
   private applyHit(attacker: Actor, target: Actor, weapon: string, base: number, pen: number, zone: HitZone, falloff: number, point: THREE.Vector3, preScaled = false, from?: THREE.Vector3, explosion?: boolean): void {
-    if (attacker === this.me) { const gm = gmActive(); if (gm) base = gm.onehit ? Math.max(base, GM_ONEHIT_DAMAGE) : base * gm.damageMult; }
+    if (attacker === this.me) { const gm = gmActive(); if (gm) base *= gm.damageMult; }
     this.noteDeathHit(attacker, target, weapon, base, zone, point, from, explosion);
     if (target.kind === "remote") {
       // Client-authoritative: tell the victim's client; it applies damage and reports the kill.

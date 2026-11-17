@@ -1,79 +1,209 @@
-// LayoutRenderer: scene JSON -> absolute-positioned DOM in the original design space (1024x768), plus the
-// Stage that scales it into the window with pillarbox/letterbox like the PB client (never stretched).
-// Controls are addressed by their ORIGINAL names (Btn_CreateRoom, ScrollBar_RL...) via bind()/get().
+
 import type { Caption, Control, SceneJson } from "./format.ts";
 import type { LoadedSheet } from "./assets.ts";
 import { ensureUiFont, FONTS } from "./assets.ts";
 import { INTERACTIVE, buildSkin, wireStates, type SkinHandle } from "./Skin.ts";
 
 const CSS = `
-.pbui-stage{position:absolute;inset:0;overflow:hidden;background:#000;user-select:none;-webkit-user-select:none}
-.pbui-stage input,.pbui-stage textarea{user-select:text;-webkit-user-select:text}
-.pbui-design{position:absolute;left:0;top:0;transform-origin:0 0;overflow:hidden}
-.pbui-scene,.pbui-ctl{position:absolute}
-.pbui-ctl{box-sizing:border-box}
-.pbui-skin,.pbui-state{position:absolute;inset:0;pointer-events:none}
-.pbui-piece{position:absolute;background-repeat:no-repeat}
-.pbui-missing{background:rgba(255,0,200,.28);outline:1px solid rgba(255,0,200,.85);outline-offset:-1px}
-.pbui-caption{position:absolute;inset:0;display:flex;pointer-events:none;white-space:nowrap;overflow:hidden;
-  font-family:${FONTS.lobby};font-weight:bold;line-height:1}
-.pbui-ctl[data-cls="i3UIRadio"]>.pbui-caption{left:21px}
-.pbui-int{cursor:pointer}
-.pbui-disabled{cursor:default}
+.pbui-stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #000;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.pbui-stage input,
+.pbui-stage textarea {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.pbui-design {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  overflow: hidden;
+  will-change: transform;
+}
+
+.pbui-scene,
+.pbui-ctl {
+  position: absolute;
+}
+
+.pbui-ctl {
+  box-sizing: border-box;
+}
+
+.pbui-skin,
+.pbui-state {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.pbui-piece {
+  position: absolute;
+  background-repeat: no-repeat;
+}
+
+.pbui-missing {
+  background: rgba(255,0,200,.28);
+  outline: 1px solid rgba(255,0,200,.85);
+  outline-offset: -1px;
+}
+
+.pbui-caption {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  pointer-events: none;
+  white-space: nowrap;
+  overflow: hidden;
+  font-family: ${FONTS.lobby};
+  font-weight: bold;
+  line-height: 1;
+}
+
+.pbui-ctl[data-cls="i3UIRadio"] > .pbui-caption {
+  left: 21px;
+}
+
+.pbui-int {
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.pbui-disabled {
+  cursor: default;
+}
+
+/* Mobile rotation overlay */
+.pbui-rotate {
+  position: absolute;
+  inset: 0;
+  z-index: 999999;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 22px;
+  background: #080a10;
+  color: #fff;
+  font-family: Arial, sans-serif;
+  text-align: center;
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+.pbui-rotate-icon {
+  font-size: 64px;
+  animation: pbui-rotate-animation 2s ease-in-out infinite;
+}
+
+.pbui-rotate-title {
+  font-size: 21px;
+  font-weight: bold;
+}
+
+.pbui-rotate-description {
+  color: #aeb5c5;
+  font-size: 13px;
+  max-width: 280px;
+  line-height: 1.6;
+}
+
+.pbui-rotate-button {
+  background: linear-gradient(135deg, #ffbd52, #e78319);
+  color: #17110a;
+  border: 0;
+  border-radius: 7px;
+  padding: 13px 26px;
+  font-weight: bold;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+@keyframes pbui-rotate-animation {
+  0%, 20% { transform: rotate(0deg); }
+  70%, 100% { transform: rotate(90deg); }
+}
+
+@media (max-width: 600px) {
+  .pbui-caption {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: geometricPrecision;
+  }
+}
 `;
+
 function ensureCss(): void {
   if (document.getElementById("pbui-css")) return;
+
   const st = document.createElement("style");
   st.id = "pbui-css";
   st.textContent = CSS;
   document.head.appendChild(st);
 }
 
-/**
- * The scenes' design-time UI blues (the 2017 client's cold light blue) -> the warm gold/orange of Project Blackout's
- * look (same family as the list headers). Keyed by; other colours are untouched.
- */
 const WARM: Record<string, [number, number, number]> = {
-  "82,177,235": [255, 196, 96], // value / info texts (my info, room info, inventory nick + rank, list titles)
-  "160,209,255": [255, 224, 170], // item mount titles
-  "103,135,167": [196, 170, 124], // item mount names (dimmer)
-  "21,151,232": [255, 159, 21], // create-room section titles
+  "82,177,235": [255, 196, 96],
+  "160,209,255": [255, 224, 170],
+  "103,135,167": [196, 170, 124],
+  "21,151,232": [255, 159, 21],
 };
+
 const rgba = (c: [number, number, number, number]) => {
   const w = WARM[`${c[0]},${c[1]},${c[2]}`];
   return `rgba(${w ? w.join(",") : `${c[0]},${c[1]},${c[2]}`},${c[3]})`;
 };
-// alignX/alignY values seen: 0, 1, 2 -> start/center/end [INFERIDO from Tab/StaticText captions]
+
 const FLEX = ["flex-start", "center", "flex-end"];
-// i3 font size -> CSS px: point size at 96 dpi [INFERIDO]
-export const fontPx = (size: number) => Math.round(size * 96 / 72 * 10) / 10;
 
-// Buttons keep the label vertically centred even when the .i3UIs stores alignY 0 (shop/inventory filter row
-// Rush/SubWeapon/...: text drawn at the top edge of the 19 px button otherwise) [INFERIDO]
-const isButton = (cls?: string) => !!cls && cls.startsWith("i3UIButton");
+export const fontPx = (size: number) =>
+  Math.round(size * 96 / 72 * 10) / 10;
 
-export function applyCaption(el: HTMLElement, cap: Caption, text?: string, cls?: string): HTMLElement {
+const isButton = (cls?: string) =>
+  !!cls && cls.startsWith("i3UIButton");
+
+export function applyCaption(
+  el: HTMLElement,
+  cap: Caption,
+  text?: string,
+  cls?: string
+): HTMLElement {
   let span = el.querySelector<HTMLElement>(":scope > .pbui-caption");
+
   if (!span) {
     span = document.createElement("div");
     span.className = "pbui-caption";
     el.appendChild(span);
   }
+
   span.style.fontSize = `${fontPx(cap.size || 10)}px`;
   span.style.color = rgba(cap.color);
-  if (cap.shadow[3] > 0) span.style.textShadow = `1px 1px 0 ${rgba(cap.shadow)}`;
+
+  if (cap.shadow[3] > 0) {
+    span.style.textShadow = `1px 1px 0 ${rgba(cap.shadow)}`;
+  }
+
   span.style.justifyContent = FLEX[cap.alignX] ?? "flex-start";
-  span.style.alignItems = isButton(cls) ? "center" : FLEX[cap.alignY] ?? "center";
+  span.style.alignItems =
+    isButton(cls) ? "center" : FLEX[cap.alignY] ?? "center";
+
   span.textContent = text ?? cap.text;
+
   return span;
 }
 
 export interface RenderOptions {
-  /** draw design-time captions stored in the .i3UIs (default true) */
   captions?: boolean;
-  /** override captions by control name (e.g. labels from String_Brazil.lua) */
   texts?: Record<string, string>;
-  /** hide controls by name (runtime visibility is Lua logic in the original) */
   hidden?: string[];
 }
 
@@ -82,89 +212,180 @@ export class RenderedScene {
   readonly byName = new Map<string, HTMLElement>();
   readonly byId = new Map<number, HTMLElement>();
   readonly skins = new Map<number, SkinHandle>();
-  /** Control names drawn with the raw design-time caption because opts.texts had no override (i18n.ts: textsFor()). */
   readonly untranslated: string[] = [];
+
   private disposers: (() => void)[] = [];
 
-  constructor(readonly scene: SceneJson, readonly sheet: LoadedSheet, opts: RenderOptions = {}) {
+  constructor(
+    readonly scene: SceneJson,
+    readonly sheet: LoadedSheet,
+    opts: RenderOptions = {}
+  ) {
     ensureCss();
     ensureUiFont();
+
     const root = document.createElement("div");
     root.className = "pbui-scene";
     root.dataset.scene = scene.name;
-    root.style.cssText = `left:0;top:0;width:${scene.design.w}px;height:${scene.design.h}px`;
+
+    root.style.cssText =
+      `left:0;top:0;width:${scene.design.w}px;height:${scene.design.h}px`;
+
     this.root = root;
+
     const hidden = new Set(opts.hidden ?? []);
     const ids = new Set(scene.controls.map(c => c.id));
-    // parents may come after their children in object order -> create all, then attach
-    for (const c of scene.controls) if (!c.noLayout) this.byId.set(c.id, this.makeControl(c, opts, hidden));
+
+    // Create controls first.
+    for (const c of scene.controls) {
+      if (!c.noLayout) {
+        this.byId.set(c.id, this.makeControl(c, opts, hidden));
+      }
+    }
+
+    // Attach controls to their parents.
     for (const c of scene.controls) {
       const el = this.byId.get(c.id);
       if (!el) continue;
-      const parent = c.parent !== null && ids.has(c.parent) ? this.byId.get(c.parent) : undefined;
+
+      const parent =
+        c.parent !== null && ids.has(c.parent)
+          ? this.byId.get(c.parent)
+          : undefined;
+
       (parent ?? root).appendChild(el);
     }
   }
 
-  private makeControl(c: Control, opts: RenderOptions, hidden: Set<string>): HTMLElement {
+  private makeControl(
+    c: Control,
+    opts: RenderOptions,
+    hidden: Set<string>
+  ): HTMLElement {
     const el = document.createElement("div");
+
     el.className = "pbui-ctl";
     el.dataset.name = c.name;
     el.dataset.cls = c.cls;
-    el.style.cssText = `left:${c.x}px;top:${c.y}px;width:${c.w}px;height:${c.h}px`;
-    if (c.color && c.color[3] !== 1) el.style.opacity = String(c.color[3]);
-    if (hidden.has(c.name)) el.hidden = true;
-    const tpl = c.template ? this.scene.templates[c.template] : undefined;
+
+    el.style.cssText =
+      `left:${c.x}px;top:${c.y}px;width:${c.w}px;height:${c.h}px`;
+
+    if (c.color && c.color[3] !== 1) {
+      el.style.opacity = String(c.color[3]);
+    }
+
+    if (hidden.has(c.name)) {
+      el.hidden = true;
+    }
+
+    const tpl = c.template
+      ? this.scene.templates[c.template]
+      : undefined;
+
     if (tpl) {
       const skin = buildSkin(tpl, c.w, c.h, this.sheet);
+
       el.appendChild(skin.el);
       this.skins.set(c.id, skin);
+
       if (INTERACTIVE.has(c.cls)) {
         el.classList.add("pbui-int");
         this.disposers.push(wireStates(el, skin));
       }
     }
+
     if (c.caption && opts.captions !== false) {
       const t = opts.texts?.[c.name];
-      if (t === undefined && c.caption.text) this.untranslated.push(c.name);
-      if (t !== undefined || c.caption.text) applyCaption(el, c.caption, t, c.cls);
+
+      if (t === undefined && c.caption.text) {
+        this.untranslated.push(c.name);
+      }
+
+      if (t !== undefined || c.caption.text) {
+        applyCaption(el, c.caption, t, c.cls);
+      }
     }
-    if (!this.byName.has(c.name)) this.byName.set(c.name, el);
+
+    if (!this.byName.has(c.name)) {
+      this.byName.set(c.name, el);
+    }
+
     return el;
   }
 
-  get(name: string): HTMLElement | undefined { return this.byName.get(name); }
-  control(name: string): Control | undefined { return this.scene.controls.find(c => c.name === name); }
+  get(name: string): HTMLElement | undefined {
+    return this.byName.get(name);
+  }
+
+  control(name: string): Control | undefined {
+    return this.scene.controls.find(c => c.name === name);
+  }
 
   setText(name: string, text: string): void {
-    const c = this.control(name), el = this.byName.get(name);
-    if (c?.caption && el) applyCaption(el, c.caption, text, c.cls);
-    else if (el) { const d = document.createElement("div"); d.className = "pbui-caption"; d.textContent = text; el.appendChild(d); }
+    const c = this.control(name);
+    const el = this.byName.get(name);
+
+    if (c?.caption && el) {
+      applyCaption(el, c.caption, text, c.cls);
+    } else if (el) {
+      const d = document.createElement("div");
+      d.className = "pbui-caption";
+      d.textContent = text;
+      el.appendChild(d);
+    }
   }
 
   setEnabled(name: string, on: boolean): void {
-    const el = this.byName.get(name), c = this.control(name);
+    const el = this.byName.get(name);
+    const c = this.control(name);
+
     if (!el || !c) return;
+
     el.classList.toggle("pbui-disabled", !on);
     this.skins.get(c.id)?.setState(on ? 0 : 3);
   }
 
-  /** Links logic by original control name: bind({Btn_CreateRoom: () => ...}). Returns a disposer. */
-  bind(handlers: Record<string, (ev: MouseEvent, el: HTMLElement) => void>): () => void {
+  bind(
+    handlers: Record<
+      string,
+      (ev: MouseEvent, el: HTMLElement) => void
+    >
+  ): () => void {
     const offs: (() => void)[] = [];
+
     for (const [name, fn] of Object.entries(handlers)) {
       const el = this.byName.get(name);
-      if (!el) { console.warn(`[pbui] ${this.scene.name}: no control named ${name}`); continue; }
-      const h = (ev: MouseEvent) => { if (!el.classList.contains("pbui-disabled")) fn(ev, el); };
+
+      if (!el) {
+        console.warn(
+          `[pbui] ${this.scene.name}: no control named ${name}`
+        );
+        continue;
+      }
+
+      const h = (ev: MouseEvent) => {
+        if (!el.classList.contains("pbui-disabled")) {
+          fn(ev, el);
+        }
+      };
+
       el.addEventListener("click", h);
       offs.push(() => el.removeEventListener("click", h));
     }
+
     this.disposers.push(...offs);
+
     return () => offs.forEach(f => f());
   }
 
-  /** Frames drawn as placeholders (encrypted/missing atlases). */
-  missingFrames(): string[] { return [...new Set([...this.skins.values()].flatMap(s => s.missing))]; }
+  missingFrames(): string[] {
+    return [
+      ...new Set(
+        [...this.skins.values()].flatMap(s => s.missing)
+      )
+    ];
+  }
 
   destroy(): void {
     this.disposers.forEach(f => f());
@@ -173,71 +394,289 @@ export class RenderedScene {
   }
 }
 
-/**
- * Stage: fixed design box (default 1024x768) scaled by min(W/dw, H/dh) and centred -> black bars on
- * 16:9 (pillarbox), as the PB client does instead of stretching.
- * `stretch`: X and Y scaled apart (W/dw, H/dh) over the whole window, as the i3Gui root of the Cross ready stage:
- * CStageReady SetViewer(viewer, 1) (0x511bb7) -> i3GuiRoot::SetViewer (i3GuiDx 0x1000b120) sets
- * m_sfGuiResolutionWidth = W / 1024 and Height = H / 768, applied per axis by every control's _ResizeControl (0x10023940).
- * `stretch`: SetViewer(viewer, 0) (the CBattleGui root, 0x718d62, LoadGUIFile 0x718bc0): the resolution is 1.0, so the
- * design is drawn at window px, top-left, unscaled (no letterbox). Respawn_BG and the battle GUI use it.
- */
-/** stretch mode: the widest / tallest window shape the UI stretches to (width / height) */
-const STRETCH_MAX_ASPECT = 16 / 9, STRETCH_MIN_ASPECT = 4 / 3;
+/* ==========================================
+   MOBILE LANDSCAPE STAGE
+========================================== */
+
+const STRETCH_MAX_ASPECT = 16 / 9;
+const STRETCH_MIN_ASPECT = 4 / 3;
+
+interface OrientationLock {
+  lock?: (orientation: string) => Promise<void>;
+}
 
 export class Stage {
   readonly el: HTMLElement;
   readonly design: HTMLElement;
+
+  private rotateOverlay: HTMLElement;
+  private rotateButton: HTMLButtonElement;
+
   private ro: ResizeObserver | null = null;
-  /** horizontal scale (both axes unless stretch) */
+  private mobile = false;
+  private isPortrait = false;
+  private lockAttempted = false;
+
   scale = 1;
-  /** vertical scale with stretch */
   scaleY = 1;
 
-  constructor(readonly host: HTMLElement, readonly dw = 1024, readonly dh = 768, readonly stretch: boolean | "px" = false) {
+  private readonly handleResize = () => {
+    this.fit();
+  };
+
+  private readonly handleOrientation = () => {
+    this.fit();
+  };
+
+  constructor(
+    readonly host: HTMLElement,
+    readonly dw = 1024,
+    readonly dh = 768,
+    readonly stretch: boolean | "px" = false
+  ) {
     ensureCss();
+
     this.el = document.createElement("div");
     this.el.className = "pbui-stage";
+
     this.design = document.createElement("div");
     this.design.className = "pbui-design";
+
     this.design.style.width = `${dw}px`;
     this.design.style.height = `${dh}px`;
+
     this.el.appendChild(this.design);
-    host.appendChild(this.el);
+
+    // Rotation instruction overlay.
+    this.rotateOverlay = document.createElement("div");
+    this.rotateOverlay.className = "pbui-rotate";
+
+    const rotateIcon = document.createElement("div");
+    rotateIcon.className = "pbui-rotate-icon";
+    rotateIcon.textContent = "📱";
+
+    const rotateTitle = document.createElement("div");
+    rotateTitle.className = "pbui-rotate-title";
+    rotateTitle.textContent = "Rotate Your Device";
+
+    const rotateDescription = document.createElement("div");
+    rotateDescription.className = "pbui-rotate-description";
+    rotateDescription.textContent =
+      "PBLabs is designed for landscape orientation. " +
+      "Please rotate your phone to a horizontal position.";
+
+    this.rotateButton = document.createElement("button");
+    this.rotateButton.className = "pbui-rotate-button";
+    this.rotateButton.textContent = "Enable Landscape Mode";
+
+    this.rotateButton.addEventListener("click", () => {
+      void this.requestLandscape();
+    });
+
+    this.rotateOverlay.append(
+      rotateIcon,
+      rotateTitle,
+      rotateDescription,
+      this.rotateButton
+    );
+
+    this.el.appendChild(this.rotateOverlay);
+    this.host.appendChild(this.el);
+
     this.fit();
-    this.ro = new ResizeObserver(() => this.fit());
+
+    this.ro = new ResizeObserver(this.handleResize);
     this.ro.observe(this.el);
+
+    window.addEventListener("resize", this.handleResize);
+    window.addEventListener("orientationchange", this.handleOrientation);
+
+    if (screen.orientation) {
+      screen.orientation.addEventListener(
+        "change",
+        this.handleOrientation
+      );
+    }
+
+    // Try locking after the first user interaction.
+    this.el.addEventListener(
+      "pointerdown",
+      this.handleFirstInteraction,
+      { once: true }
+    );
+  }
+
+  private handleFirstInteraction = () => {
+    if (this.mobile && !this.lockAttempted) {
+      this.lockAttempted = true;
+      void this.requestLandscape();
+    }
+  };
+
+  /**
+   * Request landscape orientation.
+   * Browser may reject this when fullscreen/user activation is required.
+   */
+  async requestLandscape(): Promise<boolean> {
+    try {
+      const orientation =
+        screen.orientation as ScreenOrientation & OrientationLock;
+
+      if (orientation.lock) {
+        await orientation.lock("landscape");
+        return true;
+      }
+    } catch (error) {
+      console.info(
+        "[pbui] Landscape lock unavailable. Rotate manually.",
+        error
+      );
+    }
+
+    return false;
+  }
+
+  private detectMobile(): boolean {
+    const coarse =
+      window.matchMedia("(pointer: coarse)").matches;
+
+    const smallScreen =
+      Math.min(window.innerWidth, window.innerHeight) <= 600;
+
+    return coarse || smallScreen;
+  }
+
+  private updateOrientationUI(): void {
+    if (this.mobile && this.isPortrait) {
+      this.rotateOverlay.style.display = "flex";
+      this.design.style.visibility = "hidden";
+    } else {
+      this.rotateOverlay.style.display = "none";
+      this.design.style.visibility = "visible";
+    }
   }
 
   fit(): void {
-    const W = this.el.clientWidth || window.innerWidth, H = this.el.clientHeight || window.innerHeight;
+    const W =
+      this.el.clientWidth || window.innerWidth;
+
+    const H =
+      this.el.clientHeight || window.innerHeight;
+
+    this.mobile = this.detectMobile();
+    this.isPortrait = H > W;
+
+    this.updateOrientationUI();
+
+    // Original pixel mode.
     if (this.stretch === "px") {
-      this.scale = this.scaleY = 1;
+      this.scale = 1;
+      this.scaleY = 1;
       this.design.style.transform = "none";
       return;
     }
+
+    // Original stretch mode.
     if (this.stretch) {
-      // stretched per axis only within the shapes the client ran at (4:3 .. 16:9); an ultrawide or tall window keeps that
-      // limit and centres the UI, the background fills the rest [RECRIADO: the D3D9 client had no 21:9; user choice 2026-10-12]
-      const ww = Math.min(W, H * STRETCH_MAX_ASPECT), hh = Math.min(H, W / STRETCH_MIN_ASPECT);
+      const ww = Math.min(
+        W,
+        H * STRETCH_MAX_ASPECT
+      );
+
+      const hh = Math.min(
+        H,
+        W / STRETCH_MIN_ASPECT
+      );
+
       this.scale = ww / this.dw;
       this.scaleY = hh / this.dh;
-      this.design.style.transform = `translate(${(W - ww) / 2}px,${(H - hh) / 2}px) scale(${this.scale},${this.scaleY})`;
+
+      const ox = (W - ww) / 2;
+      const oy = (H - hh) / 2;
+
+      this.design.style.transform =
+        `translate(${ox}px,${oy}px) ` +
+        `scale(${this.scale},${this.scaleY})`;
+
       return;
     }
-    this.scale = Math.min(W / this.dw, H / this.dh);
-    const ox = (W - this.dw * this.scale) / 2, oy = (H - this.dh * this.scale) / 2;
-    this.design.style.transform = `translate(${ox}px,${oy}px) scale(${this.scale})`;
+
+    // Mobile landscape and desktop:
+    // Maintain original aspect ratio, never stretch.
+    const scaleX = W / this.dw;
+    const scaleY = H / this.dh;
+
+    this.scale = Math.min(scaleX, scaleY);
+    this.scaleY = this.scale;
+
+    const scaledW = this.dw * this.scale;
+    const scaledH = this.dh * this.scale;
+
+    const ox = (W - scaledW) / 2;
+    const oy = (H - scaledH) / 2;
+
+    this.design.style.transform =
+      `translate(${ox}px,${oy}px) scale(${this.scale})`;
   }
 
-  /** window px -> design px (for popups/tooltips positioned from pointer events) */
-  toDesign(clientX: number, clientY: number): { x: number; y: number } {
+  /**
+   * Window coordinates -> original design coordinates.
+   */
+  toDesign(
+    clientX: number,
+    clientY: number
+  ): { x: number; y: number } {
     const r = this.design.getBoundingClientRect();
-    return { x: (clientX - r.left) / this.scale, y: (clientY - r.top) / (this.stretch ? this.scaleY : this.scale) };
+
+    return {
+      x: (clientX - r.left) / this.scale,
+      y: (clientY - r.top) /
+        (this.stretch ? this.scaleY : this.scale)
+    };
+  }
+
+  /**
+   * Touch coordinates -> original design coordinates.
+   */
+  toDesignTouch(
+    ev: TouchEvent
+  ): { x: number; y: number } {
+    const touch =
+      ev.touches[0] ?? ev.changedTouches[0];
+
+    if (!touch) {
+      return { x: 0, y: 0 };
+    }
+
+    return this.toDesign(
+      touch.clientX,
+      touch.clientY
+    );
   }
 
   destroy(): void {
     this.ro?.disconnect();
+
+    window.removeEventListener(
+      "resize",
+      this.handleResize
+    );
+
+    window.removeEventListener(
+      "orientationchange",
+      this.handleOrientation
+    );
+
+    screen.orientation?.removeEventListener(
+      "change",
+      this.handleOrientation
+    );
+
+    this.el.removeEventListener(
+      "pointerdown",
+      this.handleFirstInteraction
+    );
+
     this.el.remove();
   }
 }

@@ -192,7 +192,7 @@ export class LobbyScreen {
       go.disabled = true;
       void this.doLogin(gw.value.trim(), user.value.trim(), pass.value, tok.value.trim()).finally(() => (go.disabled = false));
     };
-    this.render("Project Blackout", "Local server login via WebSocket", form);
+    this.render("PBLabs", "Local server login via WebSocket", form);
     this.status("");
   }
 
