@@ -267,6 +267,13 @@ export function showAccountScreen(): Promise<AccountSession> {
           </div>
         </div>
 
+        <div class="pb-auth-group" id="pb-acc-email-group" hidden>
+          <label class="pb-auth-label" for="pb-acc-email">Email</label>
+          <div class="pb-auth-input-wrapper">
+            <input class="pb-account-input" id="pb-acc-email" type="email" autocomplete="email" maxlength="255" placeholder="Enter email..." />
+          </div>
+        </div>
+
         <div class="pb-auth-group">
           <label class="pb-auth-label" for="pb-acc-password">Password</label>
           <div class="pb-auth-input-wrapper">
@@ -289,6 +296,8 @@ export function showAccountScreen(): Promise<AccountSession> {
     const modeBtn = overlay.querySelector<HTMLButtonElement>("#pb-acc-mode")!;
     const submitBtn = overlay.querySelector<HTMLButtonElement>("#pb-acc-submit")!;
     const usernameInput = overlay.querySelector<HTMLInputElement>("#pb-acc-username")!;
+    const emailGroup = overlay.querySelector<HTMLElement>("#pb-acc-email-group")!;
+    const emailInput = overlay.querySelector<HTMLInputElement>("#pb-acc-email")!;
     const passwordInput = overlay.querySelector<HTMLInputElement>("#pb-acc-password")!;
     const errorBox = overlay.querySelector<HTMLElement>("#pb-acc-error")!;
     const mainTitle = overlay.querySelector<HTMLElement>("#pb-auth-main-title")!;
@@ -301,6 +310,8 @@ export function showAccountScreen(): Promise<AccountSession> {
       modeBtn.textContent = next === "login" ? "CREATE ACCOUNT" : "BACK TO LOGIN";
       submitBtn.textContent = next === "login" ? "LOGIN" : "REGISTER";
       passwordInput.autocomplete = next === "login" ? "current-password" : "new-password";
+      emailGroup.hidden = next === "login";
+      if (next === "login") emailInput.value = "";
       hideError();
     }
 
@@ -318,6 +329,7 @@ export function showAccountScreen(): Promise<AccountSession> {
     async function submit(): Promise<void> {
       hideError();
       const username = usernameInput.value.trim();
+      const email = emailInput.value.trim();
       const password = passwordInput.value;
 
       if (!/^[a-zA-Z0-9_]{4,16}$/.test(username)) {
@@ -328,6 +340,10 @@ export function showAccountScreen(): Promise<AccountSession> {
         showError("Password must be at least 6 characters long");
         return;
       }
+      if (mode === "register" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        showError("Please enter a valid email address");
+        return;
+      }
 
       submitBtn.disabled = true;
       submitBtn.textContent = "AUTHENTICATING...";
@@ -335,7 +351,7 @@ export function showAccountScreen(): Promise<AccountSession> {
       try {
         const result = mode === "login"
           ? await loginAccount(username, password)
-          : await registerAccount(username, password);
+          : await registerAccount(username, password, email);
 
         overlay.remove();
         resolve({ token: tokenToBytes(result.token), username: result.nickname });
@@ -348,7 +364,7 @@ export function showAccountScreen(): Promise<AccountSession> {
     }
 
     submitBtn.addEventListener("click", () => void submit());
-    for (const input of [usernameInput, passwordInput]) {
+    for (const input of [usernameInput, emailInput, passwordInput]) {
       input.addEventListener("keydown", (e) => {
         if (e.key === "Enter") void submit();
       });

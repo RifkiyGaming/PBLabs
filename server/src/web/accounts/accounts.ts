@@ -24,12 +24,12 @@ function randomAccountsPassword(): string {
   return generateToken().slice(0, 12);
 }
 
-export async function registerAccount(username: string, password: string): Promise<LoginResult> {
+export async function registerAccount(username: string, password: string, email?: string): Promise<LoginResult> {
   if (isReservedNick(username)) throw new AccountApiError(400, "username not allowed"); // the nickname starts as the username
   const passwordHash = await hashPassword(password);
   const token = generateToken();
   const accountsPassword = randomAccountsPassword();
-  const email = `${username}@webclient.local`;
+  const accountEmail = email?.trim() || `${username}@webclient.local`;
 
   const client: PoolClient = await pool.connect();
   try {
@@ -60,7 +60,7 @@ export async function registerAccount(username: string, password: string): Promi
       `INSERT INTO accounts (username, password, nickname, email, token, gold, cash, access_level)
        VALUES ($1, $2, $3, $4, $5, 100000, 80000, 0)
        RETURNING player_id, nickname`,
-      [username, accountsPassword, username, email, storedToken(token)],
+      [username, accountsPassword, username, accountEmail, storedToken(token)],
     );
 
     await client.query("COMMIT");

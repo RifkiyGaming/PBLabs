@@ -5,6 +5,12 @@ export const credentialsSchema = z.object({
     .string()
     .regex(/^[a-zA-Z0-9_]{4,16}$/, "username must be 4-16 chars: letters, digits, underscore"),
   password: z.string().min(6, "password must be at least 6 characters").max(64),
+  email: z
+    .string()
+    .trim()
+    .max(255, "email must be at most 255 characters")
+    .regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "email must be a valid address")
+    .optional(),
 });
 
 export type Credentials = z.infer<typeof credentialsSchema>;

@@ -24,11 +24,14 @@ function accountApiUrl(path: string): string {
   return API_URL ? `${API_URL.replace(/\/+$/, "")}${path}` : `http://${location.hostname}:${ACCOUNT_API_PORT}${path}`;
 }
 
-async function postCredentials(path: string, username: string, password: string): Promise<AccountApiResult> {
+async function postCredentials(
+  path: string,
+  credentials: { username: string; password: string; email?: string },
+): Promise<AccountApiResult> {
   const res = await fetch(accountApiUrl(path), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify(credentials),
   });
 
   const body = await res.json().catch(() => ({}) as { error?: string });
@@ -38,12 +41,12 @@ async function postCredentials(path: string, username: string, password: string)
   return body as AccountApiResult;
 }
 
-export function registerAccount(username: string, password: string): Promise<AccountApiResult> {
-  return postCredentials("/api/register", username, password);
+export function registerAccount(username: string, password: string, email: string): Promise<AccountApiResult> {
+  return postCredentials("/api/register", { username, password, email });
 }
 
 export function loginAccount(username: string, password: string): Promise<AccountApiResult> {
-  return postCredentials("/api/login", username, password);
+  return postCredentials("/api/login", { username, password });
 }
 
 const SESSION_KEY = "pb.session";

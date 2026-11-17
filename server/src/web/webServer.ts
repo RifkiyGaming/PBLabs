@@ -84,7 +84,7 @@ async function handleApi(req: http.IncomingMessage, res: http.ServerResponse, pa
     if (req.method === "POST" && pathname === "/api/register") {
       if (isRateLimited(`register:${ip}`)) throw new AccountApiError(429, "too many requests, slow down");
       const body = credentialsSchema.parse(await readJsonBody(req));
-      sendJson(res, 201, await registerAccount(body.username, body.password));
+      sendJson(res, 201, await registerAccount(body.username, body.password, body.email));
       return;
     }
     if (req.method === "POST" && pathname === "/api/login") {
