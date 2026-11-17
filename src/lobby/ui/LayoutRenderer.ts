@@ -82,6 +82,85 @@ const CSS = `
   cursor: default;
 }
 
+/* Orientation / fullscreen gate (mobile only, see Stage.forceLandscape) */
+.pbui-rotate {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 24px;
+  border: 0;
+  overflow: hidden;
+  background: #000;
+  color: #fff;
+  text-align: center;
+  font: 700 18px/1.3 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  touch-action: manipulation;
+}
+
+.pbui-rotate.pbui-show {
+  display: flex;
+}
+
+.pbui-rotate svg {
+  width: 64px;
+  height: 64px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.pbui-rotate .pbui-ico-turn {
+  animation: pbui-rotate 2.2s ease-in-out infinite;
+}
+
+.pbui-rotate[data-mode="portrait"] .pbui-ico-fs,
+.pbui-rotate[data-mode="fullscreen"] .pbui-ico-turn {
+  display: none;
+}
+
+.pbui-rotate-sub {
+  max-width: 340px;
+  font-size: 13px;
+  font-weight: 500;
+  opacity: .75;
+}
+
+.pbui-rotate-btn {
+  margin-top: 8px;
+  padding: 13px 30px;
+  color: #fff;
+  font: 800 15px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  letter-spacing: .04em;
+  background: linear-gradient(160deg, #35d9f2, #0b8fb0);
+  border: 1.5px solid rgba(255,255,255,.55);
+  border-radius: 999px;
+  box-shadow: 0 6px 18px rgba(0,0,0,.45), 0 0 14px rgba(34,211,238,.4);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.pbui-rotate-btn:active {
+  transform: scale(.96);
+}
+
+@keyframes pbui-rotate {
+  0%, 25% { transform: rotate(0deg); }
+  70%, 100% { transform: rotate(-90deg); }
+}
+
 @media (max-width: 600px) {
   .pbui-caption {
     -webkit-font-smoothing: antialiased;
@@ -366,7 +445,13 @@ export class Stage {
     readonly host: HTMLElement,
     readonly dw = 1024,
     readonly dh = 768,
-    readonly stretch: boolean | "px" = false
+    readonly stretch: boolean | "px" = false,
+    /**
+     * Mobile only: force landscape + fullscreen (default ON). `false` disables it,
+     * "always" also applies it on desktop (handy for testing). A `?forceLandscape=1`
+     * query string does the same.
+     */
+    readonly forceLandscape: boolean | "always" = true
   ) {
     ensureCss();
 
@@ -395,6 +480,261 @@ export class Stage {
         "change",
         this.handleResize
       );
+    }
+
+    if (forceLandscape) this.setupForce();
+  }
+
+  /* ---------- force fullscreen + landscape (mobile only) ---------- */
+
+  private forceAbort: AbortController | null = null;
+  private gate: (HTMLElement & {
+    showPopover?: () => void;
+    hidePopover?: () => void;
+  }) | null = null;
+  private gateTitle: HTMLElement | null = null;
+  private gateSub: HTMLElement | null = null;
+  private gateBtn: HTMLButtonElement | null = null;
+  private forcing = false;
+
+  /**
+   * Mobile / touch-first device only (coarse primary pointer, or a phone / tablet UA with
+   * touch). Evaluated on every use, so switching device mode takes effect immediately.
+   */
+  private get isMobile(): boolean {
+    if (
+      this.forceLandscape === "always" ||
+      /[?&]forceLandscape=1\b/.test(location.search)
+    ) {
+      return true;
+    }
+
+    const coarse = window.matchMedia?.("(pointer: coarse)").matches ?? false;
+    const ua = /Android|iPhone|iPad|iPod|Mobile|Tablet/i.test(navigator.userAgent);
+
+    return coarse || (ua && navigator.maxTouchPoints > 0);
+  }
+
+  private get isPortrait(): boolean {
+    return window.innerHeight > window.innerWidth;
+  }
+
+  private get isFullscreen(): boolean {
+    return !!(
+      document.fullscreenElement ||
+      (document as unknown as { webkitFullscreenElement?: Element })
+        .webkitFullscreenElement
+    );
+  }
+
+  /** iPhone Safari has no Fullscreen API for pages: then only the rotate notice applies. */
+  private get fullscreenSupported(): boolean {
+    const d = document as unknown as { webkitFullscreenEnabled?: boolean };
+
+    return !!(document.fullscreenEnabled || d.webkitFullscreenEnabled);
+  }
+
+  private setupForce(): void {
+    const ac = new AbortController();
+    const { signal } = ac;
+
+    this.forceAbort = ac;
+
+    this.buildGate();
+
+    // Browsers only allow fullscreen from a user gesture: any tap enters (and re-enters
+    // after the user leaves fullscreen).
+    const kick = () => void this.enterFullscreenLandscape();
+
+    for (const type of ["pointerup", "touchend", "click", "keydown"]) {
+      document.addEventListener(type, kick, { capture: true, signal });
+    }
+
+    // Rotated by the user (or by our lock): try fullscreen right away. It works while the
+    // last tap is still "active"; otherwise the gate asks for one tap.
+    const turned = () => {
+      this.updateGate();
+      this.fit();
+
+      if (this.isMobile && !this.isPortrait && !this.isFullscreen) {
+        void this.enterFullscreenLandscape();
+      }
+    };
+
+    const fsChanged = () => {
+      void this.lockLandscape();
+      this.updateGate();
+      this.fit();
+
+      // other top-layer UI (touch controls) re-attaches itself after a fullscreen change:
+      // come back on top of it
+      window.setTimeout(() => this.reshowGate(), 600);
+    };
+
+    window.addEventListener("resize", turned, { signal });
+    window.addEventListener("orientationchange", turned, { signal });
+    screen.orientation?.addEventListener("change", turned, { signal });
+    document.addEventListener("fullscreenchange", fsChanged, { signal });
+    document.addEventListener("webkitfullscreenchange", fsChanged, { signal });
+
+    this.updateGate();
+    void this.lockLandscape();
+  }
+
+  private buildGate(): void {
+    const g = document.createElement("div") as NonNullable<Stage["gate"]>;
+
+    g.className = "pbui-rotate";
+    g.setAttribute("popover", "manual"); // top layer: above the game and touch controls
+
+    g.innerHTML =
+      '<svg class="pbui-ico-turn" viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="2"/>' +
+      '<path d="M11 18.5h2"/></svg>' +
+      '<svg class="pbui-ico-fs" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>' +
+      '<div class="pbui-rotate-title"></div>' +
+      '<div class="pbui-rotate-sub"></div>' +
+      '<button type="button" class="pbui-rotate-btn"></button>';
+
+    this.gateTitle = g.querySelector(".pbui-rotate-title");
+    this.gateSub = g.querySelector(".pbui-rotate-sub");
+    this.gateBtn = g.querySelector(".pbui-rotate-btn");
+
+    this.gateBtn!.addEventListener("click", () => {
+      void this.enterFullscreenLandscape();
+    });
+
+    document.body.appendChild(g);
+    this.gate = g;
+  }
+
+  /** Enter fullscreen (needs a user gesture) and lock landscape. */
+  private async enterFullscreenLandscape(): Promise<void> {
+    if (this.forcing || !this.isMobile) return;
+
+    this.forcing = true;
+
+    try {
+      if (!this.isFullscreen && this.fullscreenSupported) {
+        const el = document.documentElement as HTMLElement & {
+          webkitRequestFullscreen?: () => Promise<void> | void;
+        };
+
+        try {
+          if (el.requestFullscreen) {
+            await el.requestFullscreen({ navigationUI: "hide" });
+          } else if (el.webkitRequestFullscreen) {
+            await el.webkitRequestFullscreen();
+          }
+        } catch {
+          // refused (no gesture yet): the gate keeps asking for a tap
+        }
+      }
+
+      await this.lockLandscape();
+    } finally {
+      this.forcing = false;
+      this.updateGate();
+    }
+  }
+
+  /** Android Chrome / Firefox only accept the lock while the page is fullscreen. */
+  private async lockLandscape(): Promise<void> {
+    if (!this.isMobile) return;
+
+    const o = screen.orientation as
+      | (ScreenOrientation & { lock?: (o: string) => Promise<void> })
+      | undefined;
+
+    if (!o?.lock) return;
+
+    try {
+      await o.lock("landscape");
+    } catch {
+      // not fullscreen yet / unsupported
+    }
+  }
+
+  /**
+   * Portrait            -> "Please rotate your device" + [Landscape mode]
+   * Landscape, windowed -> "Tap to continue"           + [Enter fullscreen]
+   * Landscape, fullscreen (or not a mobile device) -> hidden
+   */
+  private updateGate(): void {
+    const g = this.gate;
+
+    if (!g) return;
+
+    let mode: "portrait" | "fullscreen" | null = null;
+
+    if (this.isMobile) {
+      if (this.isPortrait) mode = "portrait";
+      else if (this.fullscreenSupported && !this.isFullscreen) mode = "fullscreen";
+    }
+
+    if (!mode) {
+      this.setGateShown(false);
+      return;
+    }
+
+    g.dataset.mode = mode;
+
+    if (mode === "portrait") {
+      this.gateTitle!.textContent = "Please rotate your device";
+      this.gateSub!.textContent =
+        "This game is played in landscape mode. If the screen does not rotate, " +
+        "turn off rotation lock and turn your phone sideways.";
+      this.gateBtn!.textContent = "LANDSCAPE MODE";
+    } else {
+      this.gateTitle!.textContent = "Tap to continue";
+      this.gateSub!.textContent = "The game runs in fullscreen.";
+      this.gateBtn!.textContent = "ENTER FULLSCREEN";
+    }
+
+    this.setGateShown(true);
+  }
+
+  private setGateShown(on: boolean): void {
+    const g = this.gate;
+
+    if (!g) return;
+
+    g.classList.toggle("pbui-show", on);
+
+    try {
+      const open = g.matches(":popover-open");
+
+      if (on && !open) g.showPopover?.();
+      else if (!on && open) g.hidePopover?.();
+    } catch {
+      // no Popover API: the fixed-position overlay is enough
+    }
+  }
+
+  /** Move the gate back to the top of the top layer. */
+  private reshowGate(): void {
+    const g = this.gate;
+
+    if (!g || !g.classList.contains("pbui-show")) return;
+
+    try {
+      if (g.matches(":popover-open")) g.hidePopover?.();
+      g.showPopover?.();
+    } catch {
+      // ignore
+    }
+  }
+
+  private teardownForce(): void {
+    this.forceAbort?.abort();
+    this.forceAbort = null;
+
+    this.gate?.remove();
+    this.gate = null;
+
+    try {
+      screen.orientation?.unlock?.();
+    } catch {
+      // ignore
     }
   }
 
@@ -507,6 +847,8 @@ export class Stage {
       "change",
       this.handleResize
     );
+
+    this.teardownForce();
 
     this.el.remove();
   }
