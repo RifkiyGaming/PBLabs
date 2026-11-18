@@ -86,10 +86,10 @@ This data is read in real-time: you can modify a server's name or reassign it to
 Refer to **[DISTRIBUTED_SERVERS.md](DISTRIBUTED_SERVERS.md)** for details regarding the architecture, per-node environment settings, and the configuration tools used:
 
 ```
-node scripts/servers-config.mjs nodes      # which VPS carries which server and channels
+node scripts/servers-config.mjs nodes      # which machine carries which server and channels
 node scripts/servers-config.mjs add 4 <ip> 39194 Public ws://<ip>:8090
-node scripts/servers-config.mjs name 4 "VPS Baru"        # what the card says (live)
-node scripts/servers-config.mjs category 4 "VPS Lain"    # the tab it sits under (live)
+node scripts/servers-config.mjs name 4 "Server New"        # what the card says (live)
+node scripts/servers-config.mjs category 4 "Asian"    # the tab it sits under (live)
 ```
 
 ---
@@ -98,7 +98,7 @@ node scripts/servers-config.mjs category 4 "VPS Lain"    # the tab it sits under
 
 | Document | What is in it |
 | --- | --- |
-| **[DISTRIBUTED_SERVERS.md](DISTRIBUTED_SERVERS.md)** | Running the game on several VPSes against one PostgreSQL: what used to pin everything to one process, the per-node environment, the centralized config tool (`scripts/servers-config.mjs`), the display config (`name` / `category`, no restart), and the rules the config must satisfy |
+| **[DISTRIBUTED_SERVERS.md](DISTRIBUTED_SERVERS.md)** | Running the game on several machine against one PostgreSQL: what used to pin everything to one process, the per-node environment, the centralized config tool (`scripts/servers-config.mjs`), the display config (`name` / `category`, no restart), and the rules the config must satisfy |
 | **[GM_COMMAND.md](GM_COMMAND.md)** | In-game GM commands: how to run them from lobby or room chat, roles and permissions, enabling the GM role, and the full command list (`:help`, `:host`, `:endbattle`, `:sendmsg`, ...) |
 
 ---
