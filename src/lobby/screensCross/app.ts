@@ -40,7 +40,7 @@ import { noteList } from "../../net/noteClient.ts";
 import { CMC, CMC_TEXT, canClanInvite, lobbyMenuItems, roomMenuItems } from "./contextMenu.ts";
 
 /** channels shown in the channel list (user choice 2026-10-12: the first one only) */
-const VISIBLE_CHANNELS = 1;
+const VISIBLE_CHANNELS = 11;
 const BASE = `${UI_BASE}/cross`;
 /** row pitch of ctList (the context menu's list template is not decoded) [INFERIDO] */
 const CTX_ROW_H = 16;
