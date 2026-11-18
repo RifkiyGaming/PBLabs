@@ -101,6 +101,7 @@ node scripts/servers-config.mjs category 4 "Asian"    # the tab it sits under (l
 | Document | What is in it |
 | --- | --- |
 | **[DISTRIBUTED_SERVERS.md](DISTRIBUTED_SERVERS.md)** | Running the game on several machine against one PostgreSQL: what used to pin everything to one process, the per-node environment, the centralized config tool (`scripts/servers-config.mjs`), the display config (`name` / `category`, no restart), and the rules the config must satisfy |
+| **[EVENTS.md](EVENTS.md)** | In-game events: the seven event types and their `system_event_*` tables, the `yyMMddHHmm` date format (UTC), SQL recipes for login / visit / quest / rank-up / boost / xmas and the Play.json playtime event, plus load-and-restart rules |
 | **[GM_COMMAND.md](GM_COMMAND.md)** | In-game GM commands: how to run them from lobby or room chat, roles and permissions, enabling the GM role, and the full command list (`:help`, `:host`, `:endbattle`, `:sendmsg`, ...) |
 
 ---
