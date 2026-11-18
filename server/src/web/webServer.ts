@@ -1,13 +1,15 @@
 // The one HTTP/WebSocket front of the TS servers (port 8090):
-//   ws://HOST:PORT/tcp?target=auth|game1|game2|game3  -> 1 WebSocket = 1 PB session, straight into Auth/Game (no TCP hop)
-//   ws://HOST:PORT/signal?room=&role=&slot=           -> WebRTC signaling of the leader-hosted match (signal.ts)
-//   GET  /health                                      -> JSON with live session counts
-//   POST /api/register, POST /api/login               -> account HTTP API (bcrypt + Postgres, ./accounts)
+//   ws://HOST:PORT/tcp?target=auth|game<N>          -> 1 WebSocket = 1 PB session, straight into Auth/Game (no TCP hop)
+//   ws://HOST:PORT/signal?room=&role=&slot=         -> WebRTC signaling of the leader-hosted match (signal.ts)
+//   GET  /health                                    -> JSON with live session counts
+//   GET  /api/nodes                                 -> centralized server/channel config + the gateway of each VPS
+//   POST /api/kick                                  -> drop one live Game session (cross-VPS duplicate login)
+//   POST /api/register, POST /api/login             -> account HTTP API (bcrypt + Postgres, ./accounts)
 import http from "node:http";
 import type net from "node:net";
 import { WebSocketServer } from "ws";
 import { config } from "../config.ts";
-import { pool } from "../db.ts";
+import { pool, systemServers, systemChannels, onlineCounts } from "../db.ts";
 import { handleSignal, signalStats } from "./signal.ts";
 import { credentialsSchema } from "./accounts/validation.ts";
 import { registerAccount, loginAccount, AccountApiError } from "./accounts/accounts.ts";
@@ -53,7 +55,7 @@ function setApiCors(req: http.IncomingMessage, res: http.ServerResponse): void {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Vary", "Origin");
   }
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 }
 
@@ -78,6 +80,21 @@ function sendJson(res: http.ServerResponse, status: number, body: unknown): void
   res.end(JSON.stringify(body));
 }
 
+/** POST /api/kick: the caller is another node of this deployment (PB_TICKET_SECRET, which all of them share) or, when
+ *  no secret is configured, this machine only. */
+function isTrustedNode(req: http.IncomingMessage): boolean {
+  const secret = config.ticketSecret;
+  if (secret) {
+    const got = req.headers["x-pb-node"];
+    if (typeof got !== "string" || got.length > 256 || got.length !== secret.length) return false;
+    let diff = 0;
+    for (let i = 0; i < got.length; i++) diff |= got.charCodeAt(i) ^ secret.charCodeAt(i);
+    return diff === 0;
+  }
+  const ip = clientIp(req);
+  return ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1";
+}
+
 async function handleApi(req: http.IncomingMessage, res: http.ServerResponse, pathname: string): Promise<void> {
   const ip = clientIp(req) || "unknown";
   try {
@@ -91,6 +108,36 @@ async function handleApi(req: http.IncomingMessage, res: http.ServerResponse, pa
       if (isRateLimited(`login:${ip}`)) throw new AccountApiError(429, "too many requests, slow down");
       const body = credentialsSchema.parse(await readJsonBody(req));
       sendJson(res, 200, await loginAccount(body.username, body.password));
+      return;
+    }
+    if (req.method === "GET" && pathname === "/api/nodes") {
+      // The centralized config of a multi-VPS deployment, read from the shared Postgres so every node answers the same
+      // list: which system_servers row lives where (gateway), and its channels with the live counts. The client uses
+      // `gateway` to open /tcp and /signal on the VPS that owns the row (src/net/gateway.ts); empty = this entry node.
+      const [servers, channels, counts] = await Promise.all([systemServers(), systemChannels(), onlineCounts()]);
+      sendJson(res, 200, {
+        ok: true,
+        node: config.nodeId || null,
+        nodes: servers.map((s) => ({
+          serverId: s.id, host: config.advertiseHost || s.host, port: s.port, type: s.type, state: s.state,
+          gateway: s.gateway || "", name: s.name || "", category: s.category || "",
+          maxPlayers: s.maxPlayers, channelPlayers: s.channelPlayers,
+          players: counts.servers.get(s.id) ?? 0,
+          channels: channels.filter((c) => c.serverId === s.id).map((c) => ({
+            id: c.id, type: c.type, maxRooms: c.maxRooms, players: counts.channels.get(`${c.serverId}:${c.id}`) ?? 0,
+          })),
+        })),
+      });
+      return;
+    }
+    if (req.method === "POST" && pathname === "/api/kick") {
+      // The Auth of the entry node reaches the session that lives on another VPS. Guarded by PB_TICKET_SECRET (the
+      // secret every node already shares) and, without one, by loopback only: an open kick endpoint would be a griefing tool.
+      if (!isTrustedNode(req)) { sendJson(res, 403, { error: "forbidden" }); return; }
+      const body = await readJsonBody(req) as { pid?: unknown };
+      if (typeof body.pid !== "string" || !/^\d{1,20}$/.test(body.pid)) throw new AccountApiError(400, "pid required");
+      const { kickGameSession } = await import("../game/gameServer.ts");
+      sendJson(res, 200, { kicked: kickGameSession(BigInt(body.pid)) });
       return;
     }
     sendJson(res, 404, { error: "not found" });
@@ -123,7 +170,7 @@ export async function startWebServer(acceptors: Acceptors, host = config.webHost
       return;
     }
     res.writeHead(404, { "content-type": "text/plain" });
-    res.end("web front: use ws /tcp?target=auth|game1..3, /signal?room=&role=&slot= or POST /api/register|login\n");
+    res.end("web front: use ws /tcp?target=auth|game<N>, /signal?room=&role=&slot=, GET /api/nodes or POST /api/register|login|kick\n");
   });
 
   // maxPayload: a PB frame / UDP datagram / signaling message is far below 64 KiB (ws defaults to 100 MiB)

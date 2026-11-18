@@ -129,6 +129,19 @@ export const config = {
   pktPerSec: Number(env("PB_PKT_PER_SEC", "30")),
   /** SChannelXML.Apply: PB_ADVERTISE_HOST replaces system_servers.host. */
   advertiseHost: env("PB_ADVERTISE_HOST", ""),
+  /** PB_TICKET_SECRET=<hex or text>: HMAC secret of the enter/signal tickets (web/signalTicket.ts). One Postgres shared
+   *  by several VPSes means the Auth that mints the login ticket and the Game that checks it are different processes,
+   *  so every node must run the same value. Empty = a random per-process secret (single node, unchanged). */
+  ticketSecret: env("PB_TICKET_SECRET", ""),
+  /** PB_GAME_SERVER_IDS=1,4,5: the system_servers rows THIS process hosts (an add-on VPS sets only its own ids; the
+   *  entry VPS keeps the listeners it already has). Empty = fall back to PB_NODE_GATEWAY, then to the rows that carry
+   *  no gateway (the entry node, and every row of a single-node deployment). */
+  gameServerIds: env("PB_GAME_SERVER_IDS", "").split(",").map((s) => Number.parseInt(s.trim(), 10)).filter((n) => Number.isInteger(n) && n >= 1),
+  /** PB_NODE_GATEWAY=ws://<this VPS>:<web port>: host the rows whose system_servers.gateway says this address. The
+   *  alternative to PB_GAME_SERVER_IDS when the placement lives entirely in the shared config. */
+  nodeGateway: env("PB_NODE_GATEWAY", "").replace(/\/+$/, ""),
+  /** PB_NODE_ID=addon-1: label of this process in the logs (cosmetic). */
+  nodeId: env("PB_NODE_ID", ""),
   testMode: iniBool("Server", "Test", false),
   throttleSeconds: iniInt("Server", "ConnectionThrottleSeconds", 0),
   minUserSize: iniInt("Essentials", "MinUserSize", 4),

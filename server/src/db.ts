@@ -102,16 +102,35 @@ export async function banStatus(mac: string, ip: string): Promise<{ mac: boolean
   return out;
 }
 
-export interface ServerRow { id: number; state: boolean; host: string; port: number; type: string; isMobile: boolean; maxPlayers: number; channelPlayers: number }
+export interface ServerRow {
+  id: number; state: boolean; host: string; port: number; type: string; isMobile: boolean; maxPlayers: number;
+  channelPlayers: number; gateway: string;
+  /** Display name of the card in the client's select-server screen ("" = the classic "<kind> <index>"). */
+  name: string;
+  /** Category (tab) the card is grouped under ("" = the tab of `type`); a non-empty value gives it a tab of its own. */
+  category: string;
+}
 export interface ChannelRow { serverId: number; id: number; type: string; maxRooms: number }
 
 /** DaoManagerSQL.GetSystemServers. */
 export async function systemServers(): Promise<ServerRow[]> {
-  const r = await pool.query(`SELECT id, state, host, port, type, is_mobile, max_players, channel_players FROM system_servers ORDER BY id ASC`);
+  const r = await pool.query(`SELECT id, state, host, port, type, is_mobile, max_players, channel_players, gateway, name, category FROM system_servers ORDER BY id ASC`);
   return r.rows.map((x) => ({
     id: int(x.id), state: !!x.state, host: String(x.host), port: int(x.port), type: String(x.type), isMobile: !!x.is_mobile,
-    maxPlayers: int(x.max_players), channelPlayers: int(x.channel_players),
+    maxPlayers: int(x.max_players), channelPlayers: int(x.channel_players), gateway: String(x.gateway ?? ""),
+    name: String(x.name ?? ""), category: String(x.category ?? ""),
   }));
+}
+
+/** Multi-node column of the shared config: system_servers.gateway ("ws://<add-on VPS>:<web port>"), read by the client
+ *  through GET /api/nodes so one server row can live on another VPS. Idempotent, like webServer.ensureAccountSchema:
+ *  the init dump (db/init/001_init.sql) predates it and only runs against an empty volume. */
+export async function ensureServerNodeSchema(): Promise<void> {
+  await pool.query(`ALTER TABLE system_servers ADD COLUMN IF NOT EXISTS gateway text NOT NULL DEFAULT ''`);
+  // Display config (db/init/003_server_name_category.sql): read live by GET /api/nodes, so renaming a server or
+  // moving it to another category never needs a restart. Same idempotent style as the gateway column above.
+  await pool.query(`ALTER TABLE system_servers ADD COLUMN IF NOT EXISTS name text NOT NULL DEFAULT ''`);
+  await pool.query(`ALTER TABLE system_servers ADD COLUMN IF NOT EXISTS category text NOT NULL DEFAULT ''`);
 }
 
 /** DaoManagerSQL.GetSystemChannels. */

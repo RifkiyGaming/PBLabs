@@ -66,6 +66,9 @@ export function pointCashAck(error: number, a: { cash: number; gold: number; tag
 export interface ServerEntry {
   id: number; state: boolean; host: string; port: number; type: number; maxPlayers: number;
   lastPlayers: number; channelPlayers: number;
+  /** Public WebSocket front of the node that hosts this row ("" = the entry node / defaultServerUrl()). Never written to
+   *  2400 (fixed layout): the client reads it from GET /api/nodes. */
+  gateway: string;
 }
 export interface ChannelEntry { serverId: number; id: number; type: number; totalPlayers: number }
 

@@ -85,6 +85,15 @@ function locate(n: GNode, name: string, ox = 0, oy = 0): { node: GNode; ox: numb
 
 const pad3 = (n: number): string => String(n).padStart(3, "0");
 
+/** Key of the tab a select-server card sits under: its own category when the central config gives one (the tab the
+ *  servers hosted on another VPS are kept in), otherwise the tab of its type (the classic Public -> Normal map). */
+const tabKeyOf = (sv: { type: number; category?: string }): string => {
+  const cat = (sv.category ?? "").trim();
+  return cat ? `cat:${cat}` : SERVER_KIND[sv.type]?.tab ?? "normal";
+};
+/** A tab key: one of the fixed ServerListTab kinds, or a category coming from system_servers.category. */
+type ServerTabKey = ServerTab | `cat:${string}`;
+
 /** ready-room slot badge (SlotState, UI_Source03 157..245,379..421): 0 PRONTO, 1 JOGAR, 2 inventory, 3 INFO, 4 shop, 5 CLAN;
  * -1 = none. 0x7d0c20: Cross state > 8 -> 1, else switch 0x7d0de8 on state - 2 (2 shop -> 4, 3 info -> 3, 4 clan -> 5,
  * 5 inventory -> 2, 8 ready -> 0), here on the 2017 server's numbering; gacha / gift shop (no Cross state) [INFERIDO] -> shop */
@@ -127,7 +136,7 @@ export class LobbyScreenCross {
   private chatBack = 0;
   private serverHover = -1;
   /** server cards: open tab, first row shown, card under the pointer (ssServerListWin) */
-  private serverTab: ServerTab = "all";
+  private serverTab: ServerTabKey = "all";
   private serverTop = 0;
   private cardHover = -1;
   private roomHover = -1;
@@ -390,7 +399,8 @@ export class LobbyScreenCross {
 
   /** servers of the open tab (index into ctl.servers) */
   private tabServers(): number[] {
-    return this.ctl.servers.flatMap((sv, i) => (this.serverTab === "all" || SERVER_KIND[sv.type]?.tab === this.serverTab ? [i] : []));
+    const key = this.serverTab;
+    return this.ctl.servers.flatMap((sv, i) => (key === "all" || tabKeyOf(sv) === key ? [i] : []));
   }
 
   /** TryEnterServer 0x820690: a closed server does nothing, a full one says USER_FULL, else the server's channels */
@@ -418,8 +428,8 @@ export class LobbyScreenCross {
       b.el.style.cursor = "pointer";
       b.el.addEventListener("click", () => {
         const tab = this.serverTabs()[n];
-        if (!tab || tab === this.serverTab) return;
-        this.serverTab = tab;
+        if (!tab || tab.key === this.serverTab) return;
+        this.serverTab = tab.key;
         this.serverTop = 0;
         this.ctl.chSelected = -1;
         this.paint();
@@ -433,21 +443,34 @@ export class LobbyScreenCross {
     this.repaints.push(gui.button("ssServer_ListRefresh", () => this.ctl.click("list", "i3UIButtonComposed3"), () => !this.ctl.busy));
   }
 
-  /** tabs shown: "all" and the kinds that have a server, in the ServerListTab order, at most 6 */
-  private serverTabs(): ServerTab[] {
-    const kinds = new Set(this.ctl.servers.map((sv) => SERVER_KIND[sv.type]?.tab).filter(Boolean));
-    return SERVER_TABS.filter((t) => t === "all" || kinds.has(t)).slice(0, 6);
+  /** tabs shown: "all", then the categories the central config asks for, then the kinds that still have a server, in
+   *  the ServerListTab order; at most 6, the GUI only has ssServer_Tab0..5. A row with a category is listed under it
+   *  instead of under its kind's tab, which is how the servers on another VPS are kept apart from the entry ones. */
+  private serverTabs(): { key: ServerTabKey; text: [string, string] }[] {
+    const cats: string[] = [], kinds: string[] = [];
+    for (const sv of this.ctl.servers) {
+      const cat = (sv.category ?? "").trim();
+      if (cat) { if (!cats.includes(cat)) cats.push(cat); continue; }
+      const kind = SERVER_KIND[sv.type]?.tab ?? "normal";
+      if (!kinds.includes(kind)) kinds.push(kind);
+    }
+    const tabs: { key: ServerTabKey; text: [string, string] }[] = [
+      { key: "all", text: SERVER_TAB_TEXT.all },
+      ...cats.map((c) => ({ key: `cat:${c}` as ServerTabKey, text: ["", c] as [string, string] })),
+      ...SERVER_TABS.filter((t) => t !== "all" && kinds.includes(t)).map((t) => ({ key: t, text: SERVER_TAB_TEXT[t] })),
+    ];
+    return tabs.slice(0, 6);
   }
 
   private paintServerCards(): void {
     const gui = this.gui!, c = this.ctl, tabs = this.serverTabs();
-    if (!tabs.includes(this.serverTab)) this.serverTab = "all";
+    if (!tabs.some((t) => t.key === this.serverTab)) this.serverTab = "all";
     for (let n = 0; n < 6; n++) {
       const t = tabs[n];
       gui.show(`ssServer_Tab${n}`, !!t);
       if (!t) continue;
-      gui.setText(`ssServer_Tab${n}`, this.str(...SERVER_TAB_TEXT[t]));
-      gui.setState(`ssServer_Tab${n}`, t === this.serverTab ? 3 : 0);
+      gui.setText(`ssServer_Tab${n}`, this.str(...t.text));
+      gui.setState(`ssServer_Tab${n}`, t.key === this.serverTab ? 3 : 0);
     }
     const list = this.tabServers(), shown = SERVER_CARDS / SERVER_CARD_COLS;
     this.serverTop = Math.max(0, Math.min(this.serverTop, Math.ceil(list.length / SERVER_CARD_COLS) - shown));
@@ -456,7 +479,9 @@ export class LobbyScreenCross {
       gui.show(`ssServerSlot${n}`, !!sv);
       if (!sv) continue;
       const full = sv.maxPlayers > 0 && sv.players >= sv.maxPlayers, kind = SERVER_KIND[sv.type] ?? SERVER_KIND[0];
-      gui.setText(`ssServerSlotText${n}`, `${this.str(...kind.name)} ${pad3(sv.index)}`);
+      // system_servers.name overrides the classic "<kind> <index>" label; the card is narrow, so a long one is cut.
+      const label = (sv.name ?? "").trim() || `${this.str(...kind.name)} ${pad3(sv.index)}`;
+      gui.setText(`ssServerSlotText${n}`, label.length > 24 ? `${label.slice(0, 21)}...` : label);
       gui.setColor(`ssServerSlotText${n}`, !sv.online ? SERVER_CARD_COLOR.closed : full ? SERVER_CARD_COLOR.full : SERVER_CARD_COLOR.normal);
       gui.setState(`ssServerSlot${n}`, !sv.online ? 3 : i === c.chSelected ? 2 : this.cardHover === k ? 1 : 0);
       gui.get(`ssServerSlot${n}`)!.el.style.cursor = sv.online ? "pointer" : "default";

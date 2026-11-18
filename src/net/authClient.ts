@@ -1,7 +1,7 @@
 // Auth server flow: CONNECT_ACK -> LOGIN_REQ -> LOGIN_ACK -> meta 2316 -> 2318 -> 2320 -> 1060 (fetchMeta)
 // -> GAME_SERVER_STATE -> GET_CHANNELLIST -> USER_LEAVE (hand-off: keeps the account online so Game's
 // USER_ENTER accepts it). Meta order: and step 1.
-import { PbConnection, defaultServerUrl } from "./connection.ts";
+import { PbConnection, defaultServerUrl, type TcpTarget } from "./connection.ts";
 import { PacketReader, PacketWriter } from "./packet.ts";
 import { Op, errorName } from "./opcodes.ts";
 import { fetchAuthMeta, type AuthMeta } from "./metaAuth.ts";
@@ -35,6 +35,11 @@ export interface GameServerInfo {
   maxPlayers: number;
   players: number;
   channelTypes: number[];
+  /** Card label from GET /api/nodes (system_servers.name); "" = the classic "<kind name> <index>". 2400 has a fixed
+   *  layout and cannot carry it, so parseServerList leaves it unset and the lobby fills it in from the central config. */
+  name?: string;
+  /** Tab the card is grouped under from GET /api/nodes (system_servers.category); "" = the tab of `type`. */
+  category?: string;
 }
 
 export interface ChannelListInfo {
@@ -196,8 +201,14 @@ export class AuthClient {
   }
 }
 
-export function gameTargetForServer(s: GameServerInfo): "game1" | "game2" | "game3" {
+/** The system_servers row id of a 2400 entry: the advertised port is 39190 + id, the list position is the fallback. */
+export function serverRowId(s: GameServerInfo): number {
   const byPort = s.port - 39190;
-  const n = byPort >= 1 && byPort <= 3 ? byPort : Math.min(Math.max(s.index, 1), 3);
-  return `game${n}` as "game1" | "game2" | "game3";
+  return Math.min(Math.trunc(byPort >= 1 ? byPort : Math.max(s.index, 1)), 9999);
+}
+
+/** The /tcp target of a server row: `game<id>` (webServer acceptors). Resolves the add-on rows of a multi-VPS
+ *  deployment (game4, game5, ...) as well as the original three. */
+export function gameTargetForServer(s: GameServerInfo): TcpTarget {
+  return `game${serverRowId(s)}`;
 }

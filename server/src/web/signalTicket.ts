@@ -2,7 +2,9 @@
 // battle. Server.Game mints it at PRESTARTBATTLE and hands it only to that account's own /tcp session (a WebSocket text
 // frame, outside the PB stream: game/roomHandlers.ts handlePreStartBattle); the client sends it as the first /signal frame
 // ({t:"auth", ticket}). Format: base64url("<room key>.<slot>.<playerId>.<expiry unix s>") + "." + base64url(HMAC-SHA256).
-// The secret is random per process (one Cloud Run instance holds both Game and /signal) and never leaves the server.
+// The secret is random per process (one Cloud Run instance holds both Game and /signal) and never leaves the server,
+// EXCEPT across VPSes: PB_TICKET_SECRET (config.ticketSecret) pins it, so the Auth that mints the enter ticket and the
+// Game on another host that checks it agree. Every node of one deployment must carry the same value.
 // No dependency besides node:crypto: the P2P tests (src/p2p/test) import it to mint their own tickets.
 //
 // Enter ticket, same MAC: the Auth mints it on a successful LOGIN and hands it to that /tcp session
@@ -10,8 +12,18 @@
 // the Game socket before USER_ENTER (web/wsSocket.ts), and the Game only enters the account the ticket names. Body
 // "enter.<playerId>.<expiry unix s>": never parses as a /signal ticket and vice versa.
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { config } from "../config.ts";
 
-let secret = randomBytes(32);
+/** PB_TICKET_SECRET as bytes: hex when it is an even-length hex string, its UTF-8 bytes otherwise. Both ends run the
+ *  same rule, so the encoding never has to be agreed on separately. */
+const fromEnv = (): Buffer | null => {
+  const s = config.ticketSecret;
+  if (!s) return null;
+  const b = /^[0-9a-fA-F]+$/.test(s) && s.length % 2 === 0 ? Buffer.from(s, "hex") : Buffer.from(s, "utf8");
+  return b.length ? b : null;
+};
+let secret = fromEnv() ?? randomBytes(32);
+if (config.ticketSecret) console.log(`[web] ticket secret from PB_TICKET_SECRET (${secret.length} B, shared across nodes)`);
 /** Only for tools/signal-server.ts (the P2P tests share the secret with it); the game server keeps its random one. */
 export function setSignalTicketSecret(s: string | Buffer): void { secret = Buffer.from(s); }
 

@@ -45,7 +45,7 @@ test("CONNECT_ACK carries modulus with SessionId+29890 in bytes 0..4; keys are m
 });
 
 test("GAME_SERVER_STATE / CHANNELLIST / USER_LEAVE sizes", () => {
-  const servers = [0, 1].map((id) => ({ id, state: id > 0, host: "127.0.0.1", port: 39190 + id, type: id ? 3 : 0, maxPlayers: 2000, lastPlayers: 0, channelPlayers: 180 }));
+  const servers = [0, 1].map((id) => ({ id, state: id > 0, host: "127.0.0.1", port: 39190 + id, type: id ? 3 : 0, maxPlayers: 2000, lastPlayers: 0, channelPlayers: 180, gateway: "" }));
   const chans = Array.from({ length: 11 }, (_, i) => ({ serverId: 1, id: i, type: i === 10 ? 14 : 1, totalPlayers: 0 }));
   assert.equal(gameServerStateAck(servers, chans).length, 2 + 2 + 1 + 2 * 36 + 1);
   assert.equal(channelListAck(servers[1], chans).length, 2 + 16 + 22 + 6);

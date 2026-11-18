@@ -304,7 +304,9 @@ export class RoomScreen {
       const roster = r.slots.filter((s) => s.state >= 12).map((s) => ({ slot: s.slot, name: s.nick || `slot ${s.slot + 1}`, team: (s.slot % 2) as 0 | 1 }));
       const net = new PbBattleNet({
         session: { uniqueRoomId: ep.uniqueRoomId, roomSeed: ep.roomSeed, slot: ep.slot, accountId: this.accountIdByte(), signalTicket: ep.signalTicket },
-        roster, serverUrl: this.host.serverUrl ?? defaultServerUrl(), room: r,
+        // Follow the room's own Game socket: on a multi-VPS row /signal and the match link must reach the node that
+        // holds the room, not the entry gateway (signalGate is in-process there).
+        roster, serverUrl: r.game.conn.serverUrl || this.host.serverUrl || defaultServerUrl(), room: r,
       });
       this.net = net;
       // Chain onto room.onRespawnAck here, before the round's very first `r.respawn()` below: that first RESPAWN_ACK

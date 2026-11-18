@@ -1,6 +1,8 @@
 // TS port of Server.Auth (F1): AuthManager (listener, session ids, throttle), AuthClient.RunPacket dispatch and the
 // handlers the web client uses before handing off to Game: 1281 LOGIN (token), 1060 GET_POINT_CASH,
 // 1059/2399 GAME_SERVER_STATE, 2332 GET_CHANNELLIST, 2328 USER_LEAVE, 2309 KEEP_ALIVE.
+// 1059/2399 reloads the row config first (throttled), so the client's refresh button shows a server added, renamed
+// or recategorised on any node without a restart of this one.
 // F1b account meta: 2316 GET_USER_INFO, 2318 GET_INVEN_INFO, 2320 GET_OPTION (see ./meta.ts).
 // Not ported yet (logged and ignored like any unknown opcode): 2322, 2314, 2414, 2459, 2489, 2520, 8709, 1127,
 // 7681/7697/7699, 2307.
@@ -13,7 +15,7 @@ import type { Account } from "../shared/account.ts";
 import * as dao from "../shared/dao.ts";
 import { handleGetUserInfo, handleGetInvenInfo, handleGetOption } from "./meta.ts";
 import { clanMemberInfoAck, refreshAccount } from "../game/socialHandlers.ts";
-import { kickGameSession } from "../game/gameServer.ts";
+import { kickGameSession, hostsGameServer } from "../game/gameServer.ts";
 import { mintEnterTicket } from "../web/signalTicket.ts";
 import {
   EventError, ChannelType, SChannelType, parseEnum, validateKey, loginAck, pointCashAck, gameServerStateAck,
@@ -43,9 +45,47 @@ export async function loadServerData(): Promise<void> {
   const [srv, ch] = await Promise.all([db.systemServers(), db.systemChannels()]);
   servers = srv.map((s) => ({
     id: s.id, state: s.state, host: config.advertiseHost || s.host, port: s.port, type: parseEnum(SChannelType, s.type),
-    maxPlayers: s.maxPlayers, lastPlayers: 0, channelPlayers: s.channelPlayers,
+    maxPlayers: s.maxPlayers, lastPlayers: 0, channelPlayers: s.channelPlayers, gateway: s.gateway || "",
   }));
   channels = ch.map((c) => ({ serverId: c.serverId, id: c.id, type: parseEnum(ChannelType, c.type), totalPlayers: 0 }));
+}
+
+let lastReload = 0;
+
+/** Reload the row config behind the client's refresh button: a server added, renamed or recategorised on any node
+ *  shows up on the next 2399 without restarting this process. Throttled so a busy list cannot hammer the database;
+ *  a failed reload keeps the list this process already has (the log says so). */
+async function reloadServerDataThrottled(): Promise<void> {
+  if (Date.now() - lastReload < 1000) return;
+  lastReload = Date.now();
+  try {
+    await loadServerData();
+  } catch (e) {
+    log(`server list reload failed, keeping the previous one: ${e}`);
+  }
+}
+
+/** The account's live Game session wherever it runs: this process first (single node: the whole path), then, when the
+ *  row lives on another VPS, that node over POST /api/kick (system_servers.gateway). true = someone was kicked. */
+async function kickGameAnywhere(pid: bigint, srv: number): Promise<boolean> {
+  if (kickGameSession(pid)) return true;
+  if (hostsGameServer(srv)) return false; // ours and idle: nothing to forward to
+  const gw = servers.find((s) => s.id === srv)?.gateway;
+  if (!gw) return false;
+  const headers: Record<string, string> = { "content-type": "application/json" };
+  if (config.ticketSecret) headers["x-pb-node"] = config.ticketSecret; // node-to-node auth (webServer.isTrustedNode)
+  try {
+    const res = await fetch(`${gw.replace(/\/+$/, "")}/api/kick`, {
+      method: "POST", headers,
+      body: JSON.stringify({ pid: String(pid) }), signal: AbortSignal.timeout(3000),
+    });
+    const body = (await res.json()) as { kicked?: boolean };
+    if (body.kicked) log(`kick of pid ${pid} forwarded to ${gw} (Game server ${srv})`);
+    return body.kicked === true;
+  } catch (e) {
+    log(`kick of pid ${pid} on Game server ${srv} via ${gw} failed: ${e}`);
+    return false;
+  }
 }
 
 let lastRefresh = 0;
@@ -184,10 +224,11 @@ async function handleLogin(st: AuthState, req: LoginReq): Promise<void> {
       other.session.close(true, 1000);
     } else {
       // C# AuthLogin.SendLoginKickInfo: status server 0 / 255 (no Game session) -> SetOnlineStatus(false); else sync op 10 to
-      // that Game server (Server.Game AuthLogin.Load: kick). Same process here, so a direct call.
+      // that Game server (Server.Game AuthLogin.Load: kick). Same process here, so a direct call; on a multi-VPS row the
+      // session lives on another host, so kickGameAnywhere forwards it over POST /api/kick.
       const srv = (player.status >>> 16) & 0xff;
       if (srv === 0 || srv === 0xff) await db.updateAccount(player.playerId, "online", false);
-      else if (!kickGameSession(player.playerId)) log(`kick of [${player.username}] on Game server ${srv}: no live session`);
+      else if (!(await kickGameAnywhere(player.playerId, srv))) log(`kick of [${player.username}] on Game server ${srv}: no live session`);
     }
     c.close(false, 1000);
     return;
@@ -223,6 +264,7 @@ async function onPacket(st: AuthState, opcode: number, r: PacketReader, raw: Uin
       return;
     case 1059:
     case 2399:
+      await reloadServerDataThrottled();
       await refreshGameCounts();
       c.send(gameServerStateAck(servers, channels));
       return;

@@ -2,7 +2,8 @@
 // 3082) -> lobby ANTIGO simples (tabela de salas/jogadores, src/net/gameClient.ts getRoomList) -> room
 // (src/ui/roomScreen.ts) -> battle (boot.ts playBattle) -> room -> "Sair" -> lobby antigo.
 // "Testar mapa" launches the offline PoC (src/main.ts).
-import { AuthClient, gameTargetForServer, type GameServerInfo, type LoginResult } from "../net/authClient.ts";
+import { AuthClient, gameTargetForServer, serverRowId, type GameServerInfo, type LoginResult } from "../net/authClient.ts";
+import { gatewayForServer } from "../net/gateway.ts";
 import { GameClient, type LobbyPlayer, type RoomInfo } from "../net/gameClient.ts";
 import { defaultServerUrl, GW_OVERRIDE } from "../net/connection.ts";
 import type { AuthMeta } from "../net/metaAuth.ts";
@@ -273,8 +274,10 @@ export class LobbyScreen {
       await this.auth!.leave();
       this.auth = null;
       const target = gameTargetForServer(s);
+      // which VPS hosts this row (central config), entry gateway when it does not say (single node)
+      const gateway = await gatewayForServer(serverRowId(s), this.serverUrlFromStorage());
       this.status(`Connecting to ${target} (USER_ENTER)...`);
-      const game = (this.game = new GameClient(target, this.serverUrlFromStorage()));
+      const game = (this.game = new GameClient(target, gateway));
       game.conn.onClose = (why) => this.status(`Connection to the game closed: ${why}`, true);
       this.status(`Connecting to ${target} (USER_ENTER, waiting 2453/3082)...`);
       await game.enter(login.username, login.playerId, s.index);

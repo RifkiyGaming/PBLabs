@@ -2,7 +2,8 @@
 // (2588 rooms/players) -> create/join room (the existing src/ui/roomScreen.ts RoomScreen, only called) -> battle
 // (boot.ts playBattle via deps.onBattle) -> room -> lobby; inventory (6149/6150) and shop (1029/1045) through // MetaSession. No drawing here: every state change calls deps.render and the Point Blank Cross shell (screensCross/app.ts)
 // repaints its i3Gui windows from this state; clicks come back by the original control names (click(placement, control)).
-import { AuthClient, gameTargetForServer, type ChannelListInfo, type GameServerInfo, type LoginResult } from "../../net/authClient.ts";
+import { AuthClient, gameTargetForServer, serverRowId, type ChannelListInfo, type GameServerInfo, type LoginResult } from "../../net/authClient.ts";
+import { allNodeInfo, gatewayForServer, resetNodeCache } from "../../net/gateway.ts";
 import { GameClient } from "../../net/gameClient.ts";
 import type { AuthMeta } from "../../net/metaAuth.ts";
 import type { PbBattleNet } from "../../net/battle.ts";
@@ -332,14 +333,33 @@ export class Lobby2017 {
 
   /** Auth login with the account-api token, then its meta and the server list (start, reconnect). */
   private async loginAuth(): Promise<void> {
+    // start() runs again on the refresh button: drop the previous Auth socket first, or every press leaks one.
+    if (this.auth) { this.auth.conn.onClose = null; this.auth.conn.close(); this.auth = null; }
     const auth = (this.auth = new AuthClient(this.deps.serverUrl));
     const res = await auth.connectAndLogin({ token: this.deps.token, mac: this.deps.mac, width: 1024, height: 768 });
-    if (!res.ok) throw new Error(`Login recusado: ${res.errorName}`);
+    if (!res.ok) throw new Error(`Login refused: ${res.errorName}`);
     this.login = res;
     try { this.authMeta = await auth.fetchMeta(); } catch (e) { this.authMeta = null; console.warn("[lobby2017] Auth meta failed", e); }
     this.peekCache = undefined; // a reconnect brings a fresh 2316..2453
     this.servers = (await auth.getServers()).filter((s) => s.index > 0);
+    await this.applyNodeInfo();
     auth.conn.onClose = (why) => this.lost(why);
+  }
+
+  /** Merge the display config of GET /api/nodes into the list 2400 just brought. That packet has a fixed layout and
+   *  cannot carry a label or a category, and the rows live in the shared database, so this is the only place the
+   *  custom name and the category tab can come from. Refresh comes through here too (start -> loginAuth), and the
+   *  node cache is dropped first so a config change shows on the very next press. */
+  private async applyNodeInfo(): Promise<void> {
+    resetNodeCache();
+    const info = await allNodeInfo(this.deps.serverUrl);
+    if (!info.size) return; // /api/nodes unreachable: the classic labels and tabs stay, nothing else changes
+    for (const s of this.servers) {
+      const n = info.get(serverRowId(s));
+      if (!n) continue;
+      s.name = n.name;
+      s.category = n.category;
+    }
   }
 
   dispose(): void {
@@ -435,7 +455,10 @@ export class Lobby2017 {
       await this.auth.leave();
     }
     this.auth = null;
-    const game = (this.game = new GameClient(gameTargetForServer(s), this.deps.serverUrl));
+    // The row can live on another VPS (multi-VPS add-on): system_servers.gateway says where, and the entry gateway is
+    // the fallback, so a single-node setup connects exactly as it always did.
+    const gateway = await gatewayForServer(serverRowId(s), this.deps.serverUrl);
+    const game = (this.game = new GameClient(gameTargetForServer(s), gateway));
     await game.enter(login.username, login.playerId, s.index);
     await game.selectChannel(channelId);
     await game.enterLobby();

@@ -716,8 +716,8 @@ function accept(state: GameServerState, sock: net.Socket): void {
   c.session.start().catch((e) => { log(`session start failed ${e}`); c.session.close(true); });
 }
 
-/** One listener per game server row (system_servers id >= 1): PB_TS_GAME_PORT_BASE + id. */
-export async function startGameServers(): Promise<net.Server[]> {
+/** One listener per hosted game server row (system_servers id >= 1, minus PB_GAME_SERVER_IDS): PB_TS_GAME_PORT_BASE + id. */
+export async function startGameServers(): Promise<{ id: number; server: net.Server }[]> {
   await loadMaps();
   await rh.loadRewardData();
   await ph.loadProfileData();
@@ -736,9 +736,13 @@ export async function startGameServers(): Promise<net.Server[]> {
     return false;
   };
   const rows = await db.systemServers();
-  servers = rows.map((s) => ({ id: s.id, state: s.state, host: config.advertiseHost || s.host, port: s.port, type: parseEnum(SChannelType, s.type), maxPlayers: s.maxPlayers, lastPlayers: 0, channelPlayers: s.channelPlayers }));
-  const out: net.Server[] = [];
-  for (const s of rows.filter((x) => x.id >= 1)) {
+  servers = rows.map((s) => ({ id: s.id, state: s.state, host: config.advertiseHost || s.host, port: s.port, type: parseEnum(SChannelType, s.type), maxPlayers: s.maxPlayers, lastPlayers: 0, channelPlayers: s.channelPlayers, gateway: s.gateway || "" }));
+  // Which rows this process hosts (multi-VPS add-on), see hostedRowIds.
+  const ids = hostedRowIds(rows, config.gameServerIds, config.nodeGateway);
+  const hosted = rows.filter((s) => ids.includes(s.id));
+  if (config.gameServerIds.length || config.nodeGateway) log(`hosting ${ids.join(", ") || "(none)"} of ${rows.filter((x) => x.id >= 1).length} game rows${config.gameServerIds.length ? " (PB_GAME_SERVER_IDS)" : " (PB_NODE_GATEWAY)"}`);
+  const out: { id: number; server: net.Server }[] = [];
+  for (const s of hosted) {
     const st = new GameServerState({ id: s.id, channelPlayers: s.channelPlayers, maxPlayers: s.maxPlayers }, await loadChannels(s.id));
     states.set(s.id, st);
     const srv = net.createServer((sock) => accept(st, sock));
@@ -748,10 +752,27 @@ export async function startGameServers(): Promise<net.Server[]> {
       await new Promise<void>((res, rej) => { srv.once("error", rej); srv.listen(port, config.gameHost, () => res()); });
       log(`game server ${s.id} listening on ${config.gameHost}:${port} (${st.channels.length} channels)`);
     }
-    out.push(srv);
+    out.push({ id: s.id, server: srv });
   }
   return out;
 }
+
+/** Which system_servers rows this process hosts, by precedence:
+ *    PB_GAME_SERVER_IDS   explicit ids, wins;
+ *    PB_NODE_GATEWAY      rows whose gateway is this node's own public front;
+ *    neither              rows that carry no gateway - the entry node, and every row of a single-node deployment.
+ *  So an add-on row (it has a gateway) is never grabbed by the entry VPS: two processes cannot race for one port,
+ *  while a single-node setup, whose rows all have gateway '', still hosts all of them exactly as before. */
+export function hostedRowIds(rows: readonly { id: number; gateway: string }[], ids: readonly number[], gateway: string): number[] {
+  const wanted = ids.length ? new Set(ids) : null;
+  return rows
+    .filter((x) => x.id >= 1 && (wanted ? wanted.has(x.id) : gateway ? x.gateway === gateway : !x.gateway))
+    .map((x) => x.id);
+}
+
+/** true when this process runs the Game listener of that system_servers id: the Auth uses it to tell a local kick from a
+ *  cross-VPS one (the session lives on the node named by system_servers.gateway). */
+export function hostsGameServer(id: number): boolean { return states.has(id); }
 
 export { AccessLevel, getIdStatics, equipmentDataChara, getGood };
 

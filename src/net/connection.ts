@@ -5,7 +5,9 @@ import { PacketReader, PacketWriter } from "./packet.ts";
 import { Op } from "./opcodes.ts";
 import { toHex } from "./bytes.ts";
 
-export type TcpTarget = "auth" | "game1" | "game2" | "game3";
+/** Which PB session a /tcp WebSocket opens. `game<N>` is the system_servers row id N (webServer acceptors): the entry
+ *  node carries the rows it has always carried, an add-on VPS carries its own (game4, game5, ...). */
+export type TcpTarget = "auth" | `game${number}`;
 
 export interface ConnectInfo {
   sessionId: number;
