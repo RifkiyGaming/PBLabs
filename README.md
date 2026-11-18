@@ -1,6 +1,6 @@
 # PBLabs
 
-<img src="./public/assets/ss/1.png" />
+<img src="./public/1.png" />
 
 An unofficial, open-source web version of Point Blank—an experiment to bring the desktop gaming experience directly into a web browser.
 
