@@ -24,8 +24,10 @@ import type { MissionClient } from "./net/missionClient.ts";
 import { installAssetCache } from "./cache/register.ts";
 import { jsonOnce } from "./jsonOnce.ts";
 import { getSettings } from "./gameplay/settings.ts";
+import { initMobileSendButton } from "./mobileSendButton.ts";
 
 installAssetCache(); // prod only: service worker + persistent storage + "browser keeps no cache" warning
+initMobileSendButton();
 
 /** Common surface boot.ts needs from every lobby flow (LobbyScreenCross default, LobbyScreen ?lobby=web). */
 interface LobbyScreenLike {

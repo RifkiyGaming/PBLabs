@@ -904,8 +904,8 @@ export class VirtualKeyMapping {
         display: none;
         align-items: center;
         justify-content: center;
-        width: calc(46px * var(--vkm-s));
-        height: calc(46px * var(--vkm-s));
+        width: 36px;
+        height: 36px;
         padding: 0;
         margin: 0;
         color: #fff;
@@ -920,8 +920,8 @@ export class VirtualKeyMapping {
       }
       .vkm-send:focus { outline: none; }
       .vkm-send svg {
-        width: 52%;
-        height: 52%;
+        width: 16px;
+        height: 16px;
         fill: none;
         stroke: currentColor;
         stroke-width: 2.2;
@@ -1684,31 +1684,20 @@ export class VirtualKeyMapping {
     }, 90);
   }
 
-  /** Put the Send button next to the chat field, above the on-screen keyboard. */
+  /** Tombol Send di pojok kanan bawah viewport yang terlihat (di atas keyboard), sama dengan tombol global. */
   private positionSend(): void {
     const btn = this.sendBtn;
 
     if (!btn || !this.input.chatOpen || this.destroyed) return;
 
-    const size = btn.offsetWidth || 46 * this.uiScale;
-    const m = 8;
+    const size = 36;
+    const m = 12;
     const vv = window.visualViewport;
+    const right = (vv ? vv.offsetLeft + vv.width : window.innerWidth) - m;
     const bottom = (vv ? vv.offsetTop + vv.height : window.innerHeight) - m;
 
-    let left = window.innerWidth - size - m - 10;
-    let top = bottom - size;
-
-    const field = this.chatField();
-    const r = field?.getBoundingClientRect();
-
-    if (r && r.width > 0 && r.height > 0) {
-      // right of the field when there is room, otherwise inside its right end
-      left = r.right + m + size <= window.innerWidth - m ? r.right + m : r.right - size - 4;
-      top = r.top + r.height / 2 - size / 2;
-    }
-
-    btn.style.left = `${clamp(left, m, window.innerWidth - size - m)}px`;
-    btn.style.top = `${clamp(top, m, Math.max(m, bottom - size))}px`;
+    btn.style.left = `${right - size}px`;
+    btn.style.top = `${bottom - size}px`;
   }
 
   // ==========================================================
