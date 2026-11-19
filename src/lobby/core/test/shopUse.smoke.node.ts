@@ -88,7 +88,7 @@ async function buyThenUse(itemId: number, objectId: number, cosmetic: ((it: { it
 {
   const seen: number[] = [];
   const { conn, box } = await buyThenUse(1800006, 7001, (it) => { seen.push(it.itemId); return true; });
-  check("nick colour: the use-now box asks after the purchase", !!box && box.text.includes("Deseja usar este item agora?"));
+  check("nick colour: the use-now box asks after the purchase", !!box && box.text.includes("Do you want to use this item now?"));
   check("nick colour: use now goes to the cosmetic hook with the bought item", seen.length === 1 && seen[0] === 1800006);
   check("nick colour: no 1050 is sent (the inventory's Usar never activates it)", !conn.sent.some((x) => x.op === 1050));
 }

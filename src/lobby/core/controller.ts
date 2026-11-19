@@ -612,7 +612,7 @@ export class Lobby2017 {
       const cr = this.create;
       const md = ROOM_MODES[cr?.mode ?? 0];
       const rs = kind === "create"
-        ? await RoomScreen.create(game, this.roomHost(), cr?.name.trim() || `sala de ${this.nick()}`, {
+        ? await RoomScreen.create(game, this.roomHost(), cr?.name.trim() || `room of ${this.nick()}`, {
           mapId: cr!.map!.mapId, mapName: cr!.map!.name, rule: md.rule, stage: md.stage, roomType: md.roomType, weaponsFlag: weaponsFlagFor(cr!),
           killTime: cr!.killTime, ai: md.ai ? { count: cr!.botCount, level: cr!.aiLevel, allies: cr!.botAllies } : undefined,
           password: cr!.passwordOn ? cr!.password : "", limit: cr!.limitEnter ? 1 : 0, watchRule: cr!.watch, slots: md.ai ? undefined : peopleOf(cr!),
@@ -1592,7 +1592,7 @@ export class Lobby2017 {
       const text = `${S.buySuccess}\n${itemName(offer.itemId).name}`;
       if (bought) {
         this.log.push(text.replace("\n", " "));
-        this.msg = { text: `${text}\nDeseja usar este item agora?`, onOk: () => void this.useBought(bought), onCancel: () => {} };
+        this.msg = { text: `${text}\nDo you want to use this item now?`, onOk: () => void this.useBought(bought), onCancel: () => {} };
         this.draw();
       } else this.say(`${S.buySuccess} ${itemName(offer.itemId).name}`, true);
     } catch (e) {

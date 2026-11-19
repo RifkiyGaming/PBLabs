@@ -66,15 +66,35 @@ export function loadItemNames(uiBase = "/assets/ui"): Promise<void> {
 
 const ok = (s: string | null | undefined): s is string => !!s && !HANGUL.test(s);
 
+/** Sources 2..4 of one id (no provider, no coupon expansion): [name, source] or null. */
+function lookup(id: number): [string, NameSource] | null {
+  const key = String(id);
+  const cid = String(clientId(id));
+  if (ok(client[cid])) return [client[cid], "client-pt-BR"];
+  if (ok(auditNames[key])) return [auditNames[key], "audit-2017"];
+  const t = table[key];
+  if (t && ok(t[0])) return [t[0], t[1] as NameSource];
+  if (ok(iconNames[key])) return [iconNames[key], "icon-pef"];
+  return null;
+}
+
+/**
+ * Coupon 17 DD GGG (DD = days): ShopManager writes every system_shop_effects coupon as `17 DD GGG`, while the
+ * coupon_name lives under the base id 17 00 GGG in the DB (1700027 "Quick Reload Weapon" -> 1701027 / 1703027 / ...).
+ * Name = base name + " N dia(s)" (the 2017 audit's format), null when the base itself has no name.
+ */
+function couponName(itemId: number): [string, NameSource] | null {
+  if (Math.floor(itemId / 100000) !== 17) return null;
+  const days = Math.floor((itemId % 100000) / 1000);
+  if (days < 1) return null;
+  const base = lookup(itemId - days * 1000);
+  return base ? [`${base[0]} ${days} dia${days > 1 ? "s" : ""}`, "system_shop_effects"] : null;
+}
+
 export function itemName(itemId: number): ItemName {
-  const id = String(itemId);
   const p = provider?.(itemId);
   if (ok(p)) return { name: p, source: "provider" };
-  const cid = String(clientId(itemId));
-  if (ok(client[cid])) return { name: client[cid], source: "client-pt-BR" };
-  if (ok(auditNames[id])) return { name: auditNames[id], source: "audit-2017" };
-  const t = table[id];
-  if (t && ok(t[0])) return { name: t[0], source: t[1] as NameSource };
-  if (ok(iconNames[id])) return { name: iconNames[id], source: "icon-pef" };
+  const own = lookup(itemId) ?? couponName(itemId);
+  if (own) return { name: own[0], source: own[1] };
   return { name: `#${itemId}`, source: "none" };
 }

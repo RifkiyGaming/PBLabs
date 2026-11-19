@@ -45,7 +45,13 @@ export function isCharaComplete(itemId: number): boolean {
   return !complete || complete.has(itemId);
 }
 
-/** false = an Item-tab good (coupon, function item, card, ...) not complete in Cross (hidden); true before the list loads. */
+/** false = an Item-tab good (coupon, function item, card, ...) not complete in Cross (hidden); true before the list loads.
+ * Coupon 17 DD GGG (DD = days, ShopManager's expansion of system_shop_effects): it has no Goods.pef row of its own, it
+ * activates the function item 16 00 GGG - so it is complete when that base is (the audit's own rule, ported here because
+ * audit-items-cross.mjs could not read the DB on this machine: no docker. Its icon comes the same way, icons.ts iconOf). */
 export function isItemComplete(itemId: number): boolean {
-  return !items || items.has(itemId);
+  if (!items) return true;
+  if (items.has(itemId)) return true;
+  if (Math.floor(itemId / 100000) === 17 && itemId % 100000 >= 1000) return items.has(1600000 + (itemId % 1000));
+  return false;
 }

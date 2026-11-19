@@ -9,6 +9,20 @@ import { cubeFaceAverages } from "./cubeAvg";
 
 let supported = false;
 
+/**
+ * Session-wide "this .dds does not exist" list: every GLB load has its own parser (and so its own byUrl), so the 10
+ * family GLBs of one headgear folder used to probe the same missing file again. One 404 per url, then PNG for good.
+ */
+const noDds = new Set<string>();
+
+/** Folders that really publish a tex/*.dds twin next to every tex/*.png: export-model-dds.mjs writes assets/chars/ and
+ * assets/weapons/models/, export-map-dds.mjs writes assets/maps/ (the base !== null path). Everything else ships PNG
+ * only - assets/equip/ (151 folders, 656 PNG, 0 DDS), assets/objects/ (256 GLB, 0 DDS), assets/ui/ and the weapon FX
+ * (assets/weapons/fx/, 74 PNG, 0 DDS) - so probing it is a guaranteed 404 per texture in the console. [2026-11-19 disk
+ * audit; a folder added to one of those roots needs no code change, a new DDS root does] */
+const DDS_ROOTS = ["/assets/chars/", "/assets/weapons/models/", "/assets/maps/"];
+const ddsRoot = (url: string): boolean => DDS_ROOTS.some((r) => url.includes(r));
+
 /** Call once per renderer. sRGB maps need the s3tc_srgb extension too (PB shader materials sample raw, the rest decode sRGB). */
 export function setCompressedTextureSupport(renderer: THREE.WebGLRenderer): void {
   supported = renderer.extensions.has("WEBGL_compressed_texture_s3tc") && renderer.extensions.has("WEBGL_compressed_texture_s3tc_srgb");
@@ -69,16 +83,21 @@ class DdsTextureExt {
     const base = this.base ?? loaded;
     if (base === undefined || (this.base !== null && loaded !== undefined && loaded !== this.base)) return null;
     // "Texturas leves" mirror (assetLod.ts): 256 px PNGs only, there is no .dds next to them: precedence = the low-texture option wins.
-    if (this.base === null && base.includes("/models_lod/")) return null;
+    if (base.includes("/models_lod/")) return null;
+    if (!ddsRoot(base)) return null; // PNG-only folder (assets/equip, objects, weapon FX, ...): no probe at all
     const json = this.parser.json as { textures?: { source?: number; name?: string }[]; images?: { uri?: string; name?: string }[] };
     const img = json.images?.[json.textures?.[index]?.source ?? -1];
     if (!img?.uri || !/\.png$/i.test(img.uri) || img.uri.startsWith("data:")) return null;
     const url = base + img.uri.replace(/\.png$/i, ".dds");
     const png = () => this.parser.loadTextureImage(index, json.textures![index].source!, this.parser.textureLoader);
+    if (noDds.has(url)) return png(); // known miss (another GLB of the same folder already probed it)
     let p = this.byUrl.get(url);
     if (!p) {
       p = fetch(url)
-        .then((r) => (r.ok ? r.arrayBuffer() : null))
+        .then((r) => {
+          if (!r.ok) { noDds.add(url); return null; }
+          return r.arrayBuffer();
+        })
         .then((b) => {
           const tex = b && parseDds(b);
           if (!tex) return null;
@@ -199,12 +218,22 @@ class DetailMapsExt {
 
 const detailCache = new Map<string, Promise<THREE.Texture | null>>();
 
-/** One fetch per url: the .dds twin when S3TC exists, else the PNG. Raw sampling (no colour space), glTF orientation. */
+/** One fetch per url: the .dds twin when S3TC exists, else the PNG. Raw sampling (no colour space), glTF orientation.
+ * Same two guards as DdsTextureExt: a PNG-only folder is never probed, and a url that 404'd once is never fetched
+ * again (the N/S/R/E maps of a headgear used to 404 per material). */
 export function loadDetailTexture(pngUrl: string): Promise<THREE.Texture | null> {
   let p = detailCache.get(pngUrl);
   if (!p) {
-    const dds = supported
-      ? fetch(pngUrl.replace(/\.png$/i, ".dds")).then((r) => (r.ok ? r.arrayBuffer() : null)).then((b) => (b && parseDds(b)) || null).catch(() => null)
+    const ddsUrl = pngUrl.replace(/\.png$/i, ".dds");
+    const probe = supported && ddsRoot(ddsUrl) && !noDds.has(ddsUrl);
+    const dds = probe
+      ? fetch(ddsUrl)
+          .then((r) => {
+            if (!r.ok) { noDds.add(ddsUrl); return null; }
+            return r.arrayBuffer();
+          })
+          .then((b) => (b && parseDds(b)) || null)
+          .catch(() => null)
       : Promise.resolve(null);
     p = dds.then(
       (t) =>
