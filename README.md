@@ -36,10 +36,10 @@ An unofficial, open-source web version of Point Blank—an experiment to bring t
 npm run install:all
 ```
 
-2. **Download assets (e.g., Tag 0.0.2):**
+2. **Download assets (e.g., Tag 0.0.3):**
 
 ```
-npm run download -- --assets --0.0.2
+npm run download -- --assets --0.0.3
 ```
 
 
