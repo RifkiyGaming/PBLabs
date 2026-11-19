@@ -767,7 +767,7 @@ export class Lobby2017 {
     const maps = stageChoices();
     const modeList = ROOM_MODES.map((_, i) => i);
     this.create = {
-      name: `sala de ${this.nick()}`, map: maps[0] ?? null, maps, pick: 0, top: 0, busy: false, dd: null,
+      name: `room of ${this.nick()}`, map: maps[0] ?? null, maps, pick: 0, top: 0, busy: false, dd: null,
       mode: 0, modeList, killTime: DEFAULT_KILLTIME, edit: false, botCount: AI_COUNT_MAX, aiLevel: 1, botAllies: 0, balance: 0,
       password: "", passwordOn: false, limitEnter: false, people: DEFAULT_PEOPLE, weapons: { ...ALL_WEAPONS }, watch: DEFAULT_WATCH,
       randomMap: false, randomIds: [], rm: null,
