@@ -99,7 +99,7 @@ node scripts/servers-config.mjs category 4 "Asian"    # the tab it sits under (l
 ## Demo Accounts
 
 | Role | Username | Password |
-| :--- | :--- | :--- | :--- |
+| :--- | :--- | :--- |
 | **GM** | `player` | `player` |
 | **Player** | `player1` | `player1` |
 
