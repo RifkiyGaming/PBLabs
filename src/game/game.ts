@@ -1802,7 +1802,10 @@ export class Game implements BotHost {
     this.finalDone = done;
     // no 5155 before the ENDBATTLE (kill goal / clock): the server counts arrive as 0, the death acks kept the real score in the match
     const none = r.red === 0 && r.blue === 0 && this.match.score[0] + this.match.score[1] > 0;
-    this.finalData = { winner: r.winner === 0 || r.winner === 1 ? r.winner : null, red: none ? this.match.score[0] : r.red, blue: none ? this.match.score[1] : r.blue, slotExp: r.exp ?? null, slotGold: r.gold ?? null, clan: r.clan ? { ...r.clan, points: null } : null };
+    const red = none ? this.match.score[0] : r.red, blue = none ? this.match.score[1] : r.blue;
+    // the server's winner can be missing / a draw when its counts were 0 : 0 (see above): then the winner is whoever leads on the scores shown
+    const winner: 0 | 1 | null = r.winner === 0 || r.winner === 1 ? r.winner : red > blue ? 0 : blue > red ? 1 : null;
+    this.finalData = { winner, red, blue, slotExp: r.exp ?? null, slotGold: r.gold ?? null, clan: r.clan ? { ...r.clan, points: null } : null };
     this.finalEndScreen = this.match.cfg.endScreen;
     this.match.cfg.endScreen = Infinity; // the offline match must not restart under the screen
     this.radio.menu.close();

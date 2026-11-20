@@ -362,26 +362,24 @@ export async function startGame(opts: StartGameOptions = {}): Promise<GameHandle
       .replace("Control", "Ctrl")
       .replace("Space", "Espaço");
 
-  // "Click to Play" panel: small on touch / short landscape screens, like the rest of the mobile HUD.
+  // "Click to Play" panel: compact on every screen (desktop too), like the rest of the HUD.
   // (the .ov-* rules live in the page CSS, so these overrides win with !important)
   if (!document.getElementById("pb-ov-mobile")) {
     const st = document.createElement("style");
     st.id = "pb-ov-mobile";
     st.textContent = `
-      @media (pointer: coarse), (max-height: 520px) {
-        #blocker .ov-panel { display: flex !important; flex-direction: column !important; align-items: center !important; text-align: center !important; box-sizing: border-box !important; width: min(96vw, 620px) !important; max-width: 96vw !important; max-height: calc(100dvh - 12px) !important; padding: 8px 12px !important; gap: 4px !important; overflow: auto !important; }
-        #blocker .ov-logo { margin: 0 !important; }
-        #blocker .ov-logo img { height: 26px !important; max-height: 26px !important; width: auto !important; }
-        #blocker .ov-meta { margin: 0 !important; gap: 4px !important; font-size: 10px !important; }
-        #blocker .ov-play { display: block !important; align-self: center !important; margin: 4px auto !important; padding: 6px 18px !important; min-height: 0 !important; font-size: 12px !important; }
-        #blocker .ov-controls { display: grid !important; grid-template-columns: repeat(4, minmax(0, 1fr)) !important; gap: 6px !important; width: 100% !important; margin: 2px 0 0 !important; }
-        #blocker .ov-group { min-width: 0 !important; margin: 0 !important; padding: 4px 6px !important; }
-        #blocker .ov-group h3 { margin: 0 0 2px !important; font-size: 9px !important; }
-        #blocker .ov-group { text-align: left !important; }
-        #blocker .ov-row { gap: 4px !important; padding: 0 !important; font-size: 9px !important; line-height: 1.25 !important; }
-        #blocker .ov-key { min-width: 0 !important; padding: 1px 4px !important; font-size: 8px !important; }
-        #blocker .ov-leave { margin-top: 4px !important; padding: 4px 12px !important; min-height: 0 !important; font-size: 10px !important; }
-      }
+      #blocker .ov-panel { display: flex !important; flex-direction: column !important; align-items: center !important; text-align: center !important; box-sizing: border-box !important; width: min(96vw, 620px) !important; max-width: 96vw !important; max-height: calc(100dvh - 12px) !important; padding: 8px 12px !important; gap: 4px !important; overflow: auto !important; }
+      #blocker .ov-logo { margin: 0 !important; }
+      #blocker .ov-logo img { height: 26px !important; max-height: 26px !important; width: auto !important; }
+      #blocker .ov-meta { margin: 0 !important; gap: 4px !important; font-size: 10px !important; }
+      #blocker .ov-play { display: block !important; align-self: center !important; margin: 4px auto !important; padding: 6px 18px !important; min-height: 0 !important; font-size: 12px !important; }
+      #blocker .ov-controls { display: grid !important; grid-template-columns: repeat(4, minmax(0, 1fr)) !important; gap: 6px !important; width: 100% !important; margin: 2px 0 0 !important; }
+      #blocker .ov-group { min-width: 0 !important; margin: 0 !important; padding: 4px 6px !important; }
+      #blocker .ov-group h3 { margin: 0 0 2px !important; font-size: 9px !important; }
+      #blocker .ov-group { text-align: left !important; }
+      #blocker .ov-row { gap: 4px !important; padding: 0 !important; font-size: 9px !important; line-height: 1.25 !important; }
+      #blocker .ov-key { min-width: 0 !important; padding: 1px 4px !important; font-size: 8px !important; }
+      #blocker .ov-leave { margin-top: 4px !important; padding: 4px 12px !important; min-height: 0 !important; font-size: 10px !important; }
     `;
     document.head.appendChild(st);
   }
