@@ -22,6 +22,7 @@ import { soundInfo } from "../../gameplay/soundMix.ts";
 import { jsonOnce } from "../../jsonOnce.ts";
 import { CROSS_HUD_ATLASES, CROSS_RESULT_JSON, CrossFinal, crossResultTree } from "./crossFinal.ts";
 import { CROSS_HUD } from "./crossAssets.ts";
+import { applyScale, hudScale } from "./hudScale.ts";
 import { BombPanel, DashPanel, RoundBanner, TabBoard, TargetHpPanel, stageY0 } from "./crossScore.ts";
 import { CharaPanel, placeBox } from "./charaPanel.ts";
 import { RevengeBook, RevengePanel, type RevengeFoe } from "./revengePanel.ts";
@@ -193,6 +194,9 @@ export class PbHud {
   /** kill stars + crest of CChainKills (killStars.ts): the layer, the crest, 9 star cells and their numbers */
   private kstars = new KillStars();
   private kLayer: HTMLDivElement;
+  /** wrapper of every window-px panel, scaled by hudScale (mobile = small) */
+  private ui: HTMLDivElement;
+  private u = 1;
   private kcrest: HTMLDivElement;
   private kspr: HTMLDivElement[] = [];
   private ktxt: HTMLDivElement[] = [];
@@ -256,8 +260,11 @@ export class PbHud {
     this.dbg.className = "pbhud-dbg";
     this.flash = document.createElement("div");
     this.flash.className = "pbhud-flash";
-    this.chara = new CharaPanel(this.root);
-    this.dash = new DashPanel(this.root);
+    this.ui = document.createElement("div");
+    this.ui.style.cssText = "position:absolute;pointer-events:none";
+    this.root.appendChild(this.ui);
+    this.chara = new CharaPanel(this.ui);
+    this.dash = new DashPanel(this.ui);
     // radar: CBattleHUD_MiniMap draws the map in its own viewport, SetViewportRect(9, 9, 153, 153) in radar mode (0x701aee): the
     // canvas is that window (clipped there, player at its centre), over the frame sprite (0x6fe500: SetRect(5, 5, 164, 181), Hud.i3i
     // UV (340.7,6)-(504,187), not scaled) [INFERIDO: draw order; the frame's inside is a 61 % dark glass, a background].
@@ -268,12 +275,12 @@ export class PbHud {
     const ring = document.createElement("div");
     ring.style.cssText = `position:absolute;inset:0;background:url("${CROSS_HUD}/hud/Hud.png") -340.7px -6px no-repeat`;
     this.mmPanel.append(ring, this.mmCanvas);
-    this.root.appendChild(this.mmPanel);
-    this.tab = new TabBoard(this.root);
-    this.bombHud = new BombPanel(this.root);
-    this.targetHud = new TargetHpPanel(this.root);
-    this.revengePanel = new RevengePanel(this.root);
-    this.roundBanner = new RoundBanner(this.root);
+    this.ui.appendChild(this.mmPanel);
+    this.tab = new TabBoard(this.ui);
+    this.bombHud = new BombPanel(this.ui);
+    this.targetHud = new TargetHpPanel(this.ui);
+    this.revengePanel = new RevengePanel(this.ui);
+    this.roundBanner = new RoundBanner(this.ui);
     this.help = document.createElement("div");
     this.help.style.display = "none";
     this.root.appendChild(this.help);
@@ -429,7 +436,7 @@ export class PbHud {
 
   /** CChainKills::_UpdateStars: the crest + stars of killStars.ts drawn with the real Hud.i3i / kill_mark_HistoryBG.i3i cells */
   private tickKillStars(dt: number): void {
-    const f = this.kstars.update(dt, this.dw * this.scale, 768 * this.scale);
+    const f = this.kstars.update(dt, (this.dw * this.scale) / this.u, (768 * this.scale) / this.u);
     const hud = `url(${CROSS_HUD}/hud/Hud.png)`;
     const cr = this.kcrest;
     if (f.crest) cr.style.cssText = `display:block;left:${f.crest.x}px;top:${f.crest.y}px;width:${f.crest.w}px;height:${f.crest.h}px;opacity:${f.crest.alpha / 255}`;
@@ -460,6 +467,12 @@ export class PbHud {
     if (this.fx.width !== Math.round(W * dpr) || this.fx.height !== Math.round(H * dpr)) {
       this.fx.width = this.bloodCv.width = Math.round(W * dpr);
       this.fx.height = this.bloodCv.height = Math.round(H * dpr);
+    }
+    const u = hudScale(W, H);
+    if (u !== this.u || this.ui.style.width === "") {
+      this.u = u;
+      applyScale(this.ui, W, H, u);
+      applyScale(this.kLayer, W, H, u); // kill stars: window px too
     }
     const s = H / 768, dw = W / s;
     if (s === this.scale && dw === this.dw) return false;
@@ -515,7 +528,7 @@ export class PbHud {
     const y0 = stageY0(d.stageType ?? 0);
     if (this.bannerY0 !== y0) { this.bannerY0 = y0; this.banner.style.top = `${130 + y0}px`; }
     if (this.ready) {
-      const W = this.root.clientWidth || window.innerWidth, H = this.root.clientHeight || window.innerHeight;
+      const W = (this.root.clientWidth || window.innerWidth) / this.u, H = (this.root.clientHeight || window.innerHeight) / this.u;
       const live = !d.final && d.phase !== "ended";
       // Cross exe panels (window px). Kill cam, round result and minimap have no decoded Cross position yet: not drawn.
       this.chara.render(d, W, H, live && !d.dead && !d.showBoard && !d.observing);

@@ -123,9 +123,12 @@ export function showBattleLoading(info: BattleLoadingInfo, _caption?: string): v
   sprite(ui, SOURCE03, 12, 728, 49, 35, [323, 429, 372, 464]);
   const n = Math.floor(Math.random() * 7);
   const font = guiFont(14, 400);
+  // touch / short landscape screens: the tip text keeps no desktop pixel size, it shrinks with the screen height like the mobile HUD
+  const mobile = window.matchMedia("(pointer: coarse), (max-height: 520px)").matches;
+  const k = mobile ? Math.min(1, Math.max(0.4, sy)) : 1;
   const tip = document.createElement("div");
   Object.assign(tip.style, {
-    position: "absolute", left: `${70 * sx}px`, top: `${(n > 1 ? 729 : 737) * sy}px`, width: `${1024 * sx}px`, height: `${80 * sy}px`,
+    position: "absolute", left: `${70 * sx}px`, top: `${(n > 1 ? 729 : 737) * sy}px`, width: `${(1024 * sx) / k}px`, height: `${(80 * sy) / k}px`, transformOrigin: "0 0", transform: k === 1 ? "" : `scale(${k})`,
     font: font.css, lineHeight: `${font.lineH}px`, color: "#fff", whiteSpace: "pre-wrap",
   });
   markup(tip, tOr(n > 1 ? `STBL_IDX_TIP_LOADING_DUAL_${n - 2}` : `STBL_IDX_TIP_LOADING_SINGLE_${n}`, ""));

@@ -67,6 +67,9 @@ const clamp = (v: number, min: number, max: number) =>
 
 const TAP_MS = 70;
 
+/** On-screen button sizes in px (before scale): FIRE large, Q medium, everything else normal. */
+const BTN = { large: 96, medium: 60, normal: 52 } as const;
+
 type PopoverElement = HTMLElement & {
   showPopover?: () => void;
   hidePopover?: () => void;
@@ -82,27 +85,28 @@ const ICON = {
   reload: svg('<path d="M20 12a8 8 0 1 1-2.6-5.9M20 4v5h-5"/>'),
   fire: svg('<circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>'),
   aim: svg('<circle cx="12" cy="12" r="8"/><path d="M12 7v10M7 12h10"/>'),
-  walk: svg('<path d="M8.5 3.5c1.8 0 2.8 1.8 2.8 3.8S10.300 11 8.500 11 5.700 9.300 5.700 7.300 6.700 3.500 8.500 3.500zM7 13.500h3.500V15a1.750 1.750 0 0 1-3.500 0zM15.500 10c1.800 0 2.800 1.800 2.800 3.800s-1 3.700-2.800 3.700-2.800-1.700-2.800-3.700 1-3.800 2.800-3.800zM14 19.500h3.500V21H14z"/>'),
-  action: svg('<path d="M9 11V5.500a1.500 1.500 0 0 1 3 0V10M12 9.500a1.500 1.500 0 0 1 3 0V11M15 10.500a1.500 1.500 0 0 1 3 0V15a6 6 0 0 1-6 6h-.5a5.500 5.500 0 0 1-4.600-2.500L4.500 14.500a1.600 1.600 0 0 1 2.600-1.800L9 15"/>'),
+  walk: svg('<path d="M8.5 3.5c1.8 0 2.8 1.8 2.8 3.8S10.3 11 8.5 11 5.7 9.3 5.7 7.3 6.7 3.5 8.5 3.5zM7 13.5h3.5V15a1.75 1.75 0 0 1-3.5 0zM15.5 10c1.8 0 2.8 1.8 2.8 3.8s-1 3.7-2.8 3.7-2.8-1.7-2.8-3.7 1-3.8 2.8-3.8zM14 19.5h3.5V21H14z"/>'),
+  action: svg('<path d="M9 11V5.5a1.5 1.5 0 0 1 3 0V10M12 9.5a1.5 1.5 0 0 1 3 0V11M15 10.5a1.5 1.5 0 0 1 3 0V15a6 6 0 0 1-6 6h-.5a5.5 5.5 0 0 1-4.6-2.5L4.5 14.5a1.6 1.6 0 0 1 2.6-1.8L9 15"/>'),
 
   // utility keys
   swap: svg('<path d="M5 8h13l-3-3M19 16H6l3 3"/>'),
-  drop: svg('<path d="M12 4v11M7.500 11l4.500 4.500L16.500 11M5 20h14"/>'),
-  laser: svg('<circle cx="12" cy="12" r="2.200"/><path d="M3 12h5M16 12h5M12 3v5M12 16v5"/>'),
-  dual: svg('<rect x="3.500" y="7" width="7" height="10" rx="1.500"/><rect x="13.500" y="7" width="7" height="10" rx="1.500"/>'),
+  drop: svg('<path d="M12 4v11M7.5 11l4.5 4.5L16.5 11M5 20h14"/>'),
+  laser: svg('<circle cx="12" cy="12" r="2.2"/><path d="M3 12h5M16 12h5M12 3v5M12 16v5"/>'),
+  dual: svg('<rect x="3.5" y="7" width="7" height="10" rx="1.5"/><rect x="13.5" y="7" width="7" height="10" rx="1.5"/>'),
 
   // weapon slots 1-6
-  rifle: svg('<path d="M2 12.500h13l2-2h5v3h-6l-1.500 2H10l-1 3.500H6l1-3.500H2z"/>'),
-  pistol: svg('<path d="M4 8.500h14.500v4.500H12v6.500H8.500V13H4z"/>'),
-  knife: svg('<path d="M4 20L17.500 6.500 20 4l-.5 4.500L13 15l-3 .5L8 18z"/>'),
-  grenade: svg('<circle cx="12" cy="14.500" r="6"/><path d="M10 8.500V5h4.500M14.500 5l2.500 1.500"/>'),
-  special: svg('<circle cx="12" cy="12" r="3"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.700 5.700l2.800 2.800M15.500 15.500l2.800 2.800M18.300 5.700l-2.800 2.800M8.500 15.500l-2.800 2.800"/>'),
+  rifle: svg('<path d="M2 12.5h13l2-2h5v3h-6l-1.5 2H10l-1 3.5H6l1-3.5H2z"/>'),
+  pistol: svg('<path d="M4 8.5h14.5v4.5H12v6.5H8.5V13H4z"/>'),
+  knife: svg('<path d="M4 20L17.5 6.5 20 4l-.5 4.5L13 15l-3 .5L8 18z"/>'),
+  grenade: svg('<circle cx="12" cy="14.5" r="6"/><path d="M10 8.5V5h4.5M14.5 5l2.5 1.5"/>'),
+  special: svg('<circle cx="12" cy="12" r="3"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.7 5.7l2.8 2.8M15.5 15.5l2.8 2.8M18.3 5.7l-2.8 2.8M8.5 15.5l-2.8 2.8"/>'),
 
   // interface
   menu: svg('<path d="M5 7h14M5 12h14M5 17h14"/>'),
-  score: svg('<rect x="4" y="5" width="16" height="14" rx="2"/><path d="M4 10h16M9.500 10v9"/>'),
-  chat: svg('<path d="M4 5.500h16V16H9.500L5 19.500V16H4z"/>'),
-  send: svg('<path d="M21 3L10.500 13.500M21 3l-6.500 18-4-7.500L3 9.500z"/>'),
+  score: svg('<rect x="4" y="5" width="16" height="14" rx="2"/><path d="M4 10h16M9.5 10v9"/>'),
+  chat: svg('<path d="M4 5.5h16V16H9.5L5 19.5V16H4z"/>'),
+  more: svg('<circle cx="6" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="18" cy="12" r="1.6" fill="currentColor"/>'),
+  send: svg('<path d="M21 3L10.5 13.5M21 3l-6.5 18-4-7.5L3 9.5z"/>'),
 };
 
 const SLOT_ICONS = [
@@ -117,6 +121,28 @@ const SLOT_ICONS = [
 const cap = (icon: string, text: string) =>
   `${icon}<span class="vkm-cap">${text}</span>`;
 
+/** Actions that already have a dedicated button; every other PB_KEYS action goes to the "more" panel. */
+const USED_ACTIONS = new Set([
+  "forward", "back", "left", "right", "jump", "crouch", "walk", "reload",
+  "lastWeapon", "drop", "action", "extension", "extension2", "scoreboard", "slots", "radio",
+]);
+
+const esc = (t: string) => t.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
+
+/** "KeyG" -> "G", "Digit5" -> "5", "NumpadAdd" -> "Add", "Equal" -> "=" */
+const keyLabel = (code: string): string => {
+  const special: Record<string, string> = { Equal: "=", Minus: "-", Space: "SPC", Backquote: "`", Backslash: "\\", Slash: "/", Period: ".", Comma: ",", Semicolon: ";", Quote: "'", BracketLeft: "[", BracketRight: "]" };
+  return special[code] ?? code.replace(/^(Key|Digit|Numpad|Arrow)/, "");
+};
+
+/** "teamChat" -> "Team chat" */
+const humanize = (name: string): string => {
+  const t = name.replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase();
+  return t.charAt(0).toUpperCase() + t.slice(1);
+};
+
+interface ExtraKey { name: string; code: string }
+
 /** Elements a finger must never "steal" from the page. */
 const INTERACTIVE =
   'button, a, input, select, textarea, label, summary, [role="button"], [contenteditable="true"], [data-vkm-ignore]';
@@ -129,6 +155,7 @@ export class VirtualKeyMapping {
   private joy: HTMLDivElement | null = null;
   private stick: HTMLDivElement | null = null;
   private sendBtn: HTMLButtonElement | null = null;
+  private morePanel: HTMLDivElement | null = null;
 
   private abort: AbortController | null = null;
   private chatTimer = 0;
@@ -278,6 +305,7 @@ export class VirtualKeyMapping {
     this.joy = null;
     this.stick = null;
     this.sendBtn = null;
+    this.morePanel = null;
   }
 
   setEnabled(enabled: boolean): void {
@@ -971,6 +999,30 @@ export class VirtualKeyMapping {
         height: calc(34px * var(--vkm-s));
       }
 
+      /* ---------- "More keys" panel (every PB_KEYS action without its own button) ---------- */
+      .vkm-more {
+        position: absolute;
+        top: calc(var(--vkm-t) + 42px * var(--vkm-s));
+        left: 50%;
+        transform: translateX(-50%);
+        display: none;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: calc(6px * var(--vkm-s));
+        max-width: 60vw;
+        pointer-events: none;
+        z-index: 4;
+      }
+      .vkm-more.vkm-open { display: flex; }
+      .vkm-more .vkm-btn {
+        position: relative;
+        width: calc(38px * var(--vkm-s));
+        height: calc(38px * var(--vkm-s));
+        border-radius: 10px;
+      }
+      .vkm-k { font-size: calc(13px * var(--vkm-s)); font-weight: 800; pointer-events: none; }
+      .vkm-more-btn[aria-pressed="true"] { border-color: var(--vkm-accent); }
+
       /* ---------- Joystick ---------- */
       .vkm-ghost,
       .vkm-joy {
@@ -1195,18 +1247,80 @@ export class VirtualKeyMapping {
       onTap: () => this.tapKeyEvent("Enter"),
     });
 
+    const extras = this.extraKeys();
+
+    if (extras.length) {
+      const panel = this.createMorePanel(extras);
+
+      this.makeButton(bar, {
+        label: "Tombol lain",
+        html: ICON.more,
+        className: "vkm-keep",
+        onTap: () => {
+          const open = panel.classList.toggle("vkm-open");
+          this.root?.querySelector(".vkm-more-btn")?.setAttribute("aria-pressed", String(open));
+        },
+      }).classList.add("vkm-more-btn");
+    }
+
     this.hud!.appendChild(bar);
+  }
+
+  /**
+   * Every keyboard action of PB_KEYS that has no dedicated button (minimap zoom, chat variants,
+   * voice, ...), plus the radio keys when the radio row is off, so no key is unreachable on touch.
+   */
+  private extraKeys(): ExtraKey[] {
+    const out: ExtraKey[] = [];
+    const usable = (code: unknown): code is string =>
+      typeof code === "string" && code !== "" && !/^(Mouse|Wheel)/i.test(code);
+
+    for (const [name, value] of Object.entries(PB_KEYS as unknown as Record<string, unknown>)) {
+      if (USED_ACTIONS.has(name)) continue;
+
+      const code = Array.isArray(value) ? value[0] : value;
+      if (usable(code)) out.push({ name, code });
+    }
+
+    if (!this.showRadio) {
+      PB_KEYS.radio.forEach((code, i) => {
+        if (usable(code)) out.push({ name: `radio${i + 1}`, code });
+      });
+    }
+
+    return out;
+  }
+
+  private createMorePanel(extras: ExtraKey[]): HTMLDivElement {
+    const panel = document.createElement("div");
+    panel.className = "vkm-more";
+    this.morePanel = panel;
+
+    for (const { name, code } of extras) {
+      const label = humanize(name);
+
+      this.makeButton(panel, {
+        label,
+        html: `<span class="vkm-k">${esc(keyLabel(code))}</span><span class="vkm-cap">${esc(label.slice(0, 7))}</span>`,
+        className: "vkm-num",
+        key: code,
+        hold: true,
+      });
+    }
+
+    this.hud!.appendChild(panel);
+
+    return panel;
   }
 
   private createUtilityButtons(): void {
     const row = document.createElement("div");
     row.className = "vkm-row vkm-util";
 
-    const items: Array<[string, string, string, string]> = [
-      [cap(ICON.swap, "Q"), this.keys.lastWeapon, "Senjata terakhir", ""],
-      [cap(ICON.drop, "G"), this.keys.drop, "Buang senjata", ""],
-      [cap(ICON.laser, "B"), this.keys.extension, "Laser", ""],
-      [cap(ICON.dual, "F"), this.keys.extension2, "Dual", ""],
+    const items: Array<[html: string, key: string, label: string]> = [
+      [cap(ICON.drop, "G"), this.keys.drop, "Buang senjata"],
+      [cap(ICON.laser, "B"), this.keys.extension, "Laser"],
+      [cap(ICON.dual, "F"), this.keys.extension2, "Dual"],
     ];
 
     for (const [html, key, label] of items) {
@@ -1260,7 +1374,7 @@ export class VirtualKeyMapping {
       mouse: 0,
       hold: true,
       look: true,
-      br: { x: 0, y: 0, size: 96 },
+      br: { x: 0, y: 0, size: BTN.large },
     });
 
     this.makeButton(hud, {
@@ -1270,7 +1384,7 @@ export class VirtualKeyMapping {
       mouse: 2,
       hold: true,
       look: true,
-      br: { x: 108, y: 8, size: 60 },
+      br: { x: 108, y: 8, size: BTN.normal },
     });
 
     this.makeButton(hud, {
@@ -1278,7 +1392,7 @@ export class VirtualKeyMapping {
       html: cap(ICON.jump, "JUMP"),
       className: "vkm-round",
       key: this.keys.jump,
-      br: { x: 14, y: 108, size: 62 },
+      br: { x: 14, y: 242, size: BTN.normal },
     });
 
     this.makeButton(hud, {
@@ -1287,7 +1401,16 @@ export class VirtualKeyMapping {
       className: "vkm-round",
       key: this.keys.crouch,
       hold: true,
-      br: { x: 14, y: 182, size: 52 },
+      br: { x: 14, y: 182, size: BTN.normal },
+    });
+
+    // Q (last weapon): bottom of the left column, below CROUCH
+    this.makeButton(hud, {
+      label: "Senjata terakhir",
+      html: cap(ICON.swap, "Q"),
+      className: "vkm-round",
+      key: this.keys.lastWeapon,
+      br: { x: 10, y: 108, size: BTN.medium },
     });
 
     this.makeButton(hud, {
@@ -1295,7 +1418,7 @@ export class VirtualKeyMapping {
       html: cap(ICON.reload, "R"),
       className: "vkm-round",
       key: this.keys.reload,
-      br: { x: 112, y: 76, size: 52 },
+      br: { x: 112, y: 76, size: BTN.normal },
     });
 
     this.makeButton(hud, {
@@ -1304,7 +1427,7 @@ export class VirtualKeyMapping {
       className: "vkm-round",
       key: this.keys.action,
       hold: true,
-      br: { x: 84, y: 146, size: 50 },
+      br: { x: 84, y: 146, size: BTN.normal },
     });
 
     this.makeButton(hud, {
@@ -1313,7 +1436,7 @@ export class VirtualKeyMapping {
       className: "vkm-round",
       key: this.keys.walk,
       hold: true,
-      br: { x: 172, y: 22, size: 46 },
+      br: { x: 172, y: 22, size: BTN.normal },
     });
   }
 
@@ -1345,6 +1468,7 @@ export class VirtualKeyMapping {
     let pid: number | null = null;
     let last = { x: 0, y: 0 };
     let timer = 0;
+    let downAt = 0;
 
     const setDown = (down: boolean) => {
       if (cfg.key) this.input.setVirtualKey(cfg.key, down);
@@ -1375,6 +1499,7 @@ export class VirtualKeyMapping {
       e.stopPropagation();
 
       pid = e.pointerId;
+      downAt = performance.now();
       last = { x: e.clientX, y: e.clientY };
 
       try {
@@ -1411,7 +1536,11 @@ export class VirtualKeyMapping {
       if (e.pointerId !== pid || !cfg.hold) return;
 
       e.preventDefault();
-      finish();
+
+      // a very short tap on a hold button still keeps the key down for TAP_MS
+      const rest = TAP_MS - (performance.now() - downAt);
+      if (rest > 0) timer = window.setTimeout(finish, rest);
+      else finish();
     };
 
     button.addEventListener("pointerup", end);

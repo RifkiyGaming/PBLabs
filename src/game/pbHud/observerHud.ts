@@ -3,6 +3,7 @@
 // (0x73d2e5..0x73d8f9), target line 0x745ec0, HP list CHUD_ObserverHPGauge (0x709250 / 0x70a2e0), F9 badge 0x7628e6, help 0x73f1a0.
 // The numbers live in game/observer.ts; absolute window px (W / H = the view size, nothing scaled). Text nodes: hudText.ts.
 import { CROSS_HUD } from "./crossAssets.ts";
+import { applyScale, hudScale } from "./hudScale.ts";
 import { HELP_BAND, HP_GAUGE, observedNickColor } from "../observer.ts";
 import { idBadgeCell } from "../observerGm.ts";
 import { placeBox, placeText } from "./charaPanel.ts";
@@ -39,20 +40,29 @@ export class ObserverHud {
   private nick = { text: "", team: 0 as 0 | 1, gm: false, set: false };
   private on = false;
   private since = 0;
+  private u = 1;
 
   constructor() {
-    this.root = box(document.body, "inset:0;pointer-events:none;overflow:hidden;z-index:19;display:none;position:fixed");
+    this.root = box(document.body, "pointer-events:none;overflow:hidden;z-index:19;display:none;position:fixed");
     this.band = box(this.root);
     this.nickEl = box(this.root);
     this.lines = Array.from({ length: 4 }, () => box(this.root));
     this.heads = [0, 1].map(() => ({ pieces: [0, 1, 2].map(() => box(this.root)), title: box(this.root) }));
-    this.extras = box(document.body, "position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:21");
+    this.extras = box(document.body, "position:fixed;pointer-events:none;overflow:hidden;z-index:21");
     this.badge = box(this.extras, "display:none");
     this.help = box(this.extras, "display:none");
+    this.fit();
   }
 
-  get width(): number { return window.innerWidth; }
-  get height(): number { return window.innerHeight; }
+  get width(): number { return window.innerWidth / this.u; }
+  get height(): number { return window.innerHeight / this.u; }
+
+  /** window -> UI scale (hudScale): root and extras get a virtual size W/u x H/u and scale(u) */
+  private fit(): void {
+    const W = window.innerWidth, H = window.innerHeight, u = hudScale(W, H);
+    this.u = u;
+    for (const el of [this.root, this.extras]) applyScale(el, W, H, u);
+  }
 
   /** the four help lines (STBL_IDX_OBSERVER_NEXT / _PREV / _WEAPON "%s %s" with the key / _VIEW) and the HP list title */
   setHelp(t: ObsHelp): void { this.helpText = t; }
@@ -62,7 +72,7 @@ export class ObserverHud {
     if (on === this.on) return;
     this.on = on;
     this.root.style.display = on ? "block" : "none";
-    if (on) this.since = performance.now();
+    if (on) { this.since = performance.now(); this.fit(); }
   }
 
   /** observed player line (0x745ec0): H-68 once set, colour by team / GM observer, GM font 25 */
@@ -85,6 +95,7 @@ export class ObserverHud {
   }
 
   private layoutBand(): void {
+    this.fit();
     const W = this.width, H = this.height, b = HELP_BAND, n = this.nick;
     placeBox(this.band, 0, H - b.height, W, b.height, `rgba(0,0,0,${b.alpha.toFixed(3)})`);
     const nt: I3Text = {
