@@ -176,6 +176,36 @@ function ensureCss(): void {
   st.id = "pbui-css";
   st.textContent = CSS;
   document.head.appendChild(st);
+
+  // Suppress the browser context menu throughout the game UI.
+  // This only cancels the "contextmenu" event; right-button pointer/mouse
+  // events are left untouched so gameplay controls can still receive them.
+  document.addEventListener(
+    "contextmenu",
+    (ev) => {
+      ev.preventDefault();
+    },
+    { capture: true }
+  );
+
+  // Discourage common browser developer-tools / view-source shortcuts.
+  // This cannot disable browser menus, external tools, or every DevTools route.
+  window.addEventListener(
+    "keydown",
+    (ev) => {
+      const key = ev.key.toLowerCase();
+      const devtoolsShortcut =
+        ev.key === "F12" ||
+        (ev.ctrlKey && ev.shiftKey && ["i", "j", "c"].includes(key)) ||
+        (ev.ctrlKey && ["u"].includes(key));
+
+      if (devtoolsShortcut) {
+        ev.preventDefault();
+        ev.stopPropagation();
+      }
+    },
+    { capture: true }
+  );
 }
 
 const WARM: Record<string, [number, number, number]> = {

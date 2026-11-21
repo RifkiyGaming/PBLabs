@@ -292,6 +292,37 @@ export function showAccountScreen(): Promise<AccountSession> {
 
     document.body.appendChild(overlay);
 
+    // Suppress the browser context menu only while the account screen is open.
+    // This does not block mouse button events used by game controls elsewhere.
+    const protectionController = new AbortController();
+
+    overlay.addEventListener(
+      "contextmenu",
+      (event) => {
+        event.preventDefault();
+      },
+      { capture: true, signal: protectionController.signal }
+    );
+
+    // Discourage common DevTools / view-source shortcuts while this screen is active.
+    // Browser-level menus and external DevTools access cannot be disabled by page code.
+    window.addEventListener(
+      "keydown",
+      (event) => {
+        const key = event.key.toLowerCase();
+        const devtoolsShortcut =
+          event.key === "F12" ||
+          (event.ctrlKey && event.shiftKey && ["i", "j", "c"].includes(key)) ||
+          (event.ctrlKey && key === "u");
+
+        if (devtoolsShortcut) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+      },
+      { capture: true, signal: protectionController.signal }
+    );
+
     let mode: "login" | "register" = "login";
     const modeBtn = overlay.querySelector<HTMLButtonElement>("#pb-acc-mode")!;
     const submitBtn = overlay.querySelector<HTMLButtonElement>("#pb-acc-submit")!;
@@ -353,6 +384,7 @@ export function showAccountScreen(): Promise<AccountSession> {
           ? await loginAccount(username, password)
           : await registerAccount(username, password, email);
 
+        protectionController.abort();
         overlay.remove();
         resolve({ token: tokenToBytes(result.token), username: result.nickname });
       } catch (err) {
