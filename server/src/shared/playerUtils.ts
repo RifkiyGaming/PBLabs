@@ -90,7 +90,7 @@ export function rankItems(rank: number, gm: boolean): ItemsModel[] {
   const out: ItemsModel[] = [];
   const add = (id: number, name: string) => { const it = new ItemsModel(id, name, ItemEquipType.Permanent, 1); it.objectId = BigInt(genStockId(id)); out.push(it); };
   if (rank >= 46) add(2700008, "Beret S. General");
-  if (gm) add(700160, "MOD Hat");
+  if (gm) add(1700026, "MOD Hat");
   return out;
 }
 

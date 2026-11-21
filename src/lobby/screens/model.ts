@@ -115,10 +115,11 @@ function loadoutPanel(p: PlayerStore, tab: ItemTab): { titles: string[]; items: 
   return { titles: [S.primary, S.secondary, S.melee, S.throwing, S.special], items: [0, 1, 2, 3, 4].map((i) => eq[i].itemId) };
 }
 
+const HIDDEN_ITEM_IDS = new Set([1500511, 1500512, 1500513]);
 export function inventoryItems(p: PlayerStore, ui: MenuUi): InventoryItem[] {
   const q = ui.search.trim().toLowerCase();
   // kept even when incomplete in 2017: basics, equipped items and activated (Temporary) Item-tab goods
-  return p.items().filter((it) => isItemShown(it.itemId, isStockObjectId(it.objectId) || p.isEquipped(it) || (it.equip === ItemEquipType.Temporary && tabOf(it.itemId) === "item")) &&
+  return p.items().filter((it) => !HIDDEN_ITEM_IDS.has(it.itemId) && isItemShown(it.itemId, isStockObjectId(it.objectId) || p.isEquipped(it) || (it.equip === ItemEquipType.Temporary && tabOf(it.itemId) === "item")) &&
     matchesFilter(it.itemId, ui.tab, ui.filter) && (!q || itemName(it.itemId).name.toLowerCase().includes(q)))
     // grouped by slot (primary, secondary, melee, throw, special; chara and parts after), equipped first inside a group, the
     // server's order kept otherwise (Array.sort is stable). It came in raw server order: knives between rifles.

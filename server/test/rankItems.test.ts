@@ -13,7 +13,7 @@ import type { Account } from "../src/shared/account.ts";
 
 after(async () => { await pool.end(); });
 
-const BERET = 2700008, MOD_HAT = 700160;
+const BERET = 2700008, MOD_HAT = 700374;
 
 /** 2319 rows: H op, H 0, D 0, H n, n x {D objectId, D itemId, C equip, D count}. */
 function invenRows(b: Uint8Array): { objectId: number; itemId: number }[] {
