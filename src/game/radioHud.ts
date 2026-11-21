@@ -8,6 +8,7 @@ import { loadClip } from "../audioUrl";
 import { FONTS } from "../lobby/ui/assets.ts";
 import { loadStrings } from "../lobby/ui/i18n.ts";
 import { chat } from "../net/chatClient";
+import { applyScale, hudScale } from "./pbHud/hudScale"; // sesuaikan path jika hudScale.ts ada di folder lain
 
 /*
  * Radio Z / X / C on screen (gameplay/pbRadio.ts has the exe rules). Texts from the Cross client string table
@@ -69,6 +70,12 @@ export class RadioHud {
   private shownMenu: 0 | 1 | 2 | null = null;
   private voices = new Set<AudioBufferSourceNode>();
 
+  /** Skala layar sama seperti hud.ts / PbHud: layer virtual (W/u x H/u) di-scale u dari pojok kiri-atas. */
+  private readonly relayout = (): void => {
+    const W = window.innerWidth, H = window.innerHeight;
+    applyScale(this.root, W, H, hudScale(W, H));
+  };
+
   constructor(parent: HTMLElement = document.body) {
     this.root = document.createElement("div");
     this.root.id = "pbradio";
@@ -82,6 +89,9 @@ export class RadioHud {
     this.chatEl.style.cssText = "position:absolute;left:12px;bottom:190px;max-width:50%";
     this.root.append(...this.rows, this.chatEl);
     parent.appendChild(this.root);
+    this.relayout();
+    window.addEventListener("resize", this.relayout);
+    window.addEventListener("orientationchange", this.relayout);
     void loadRadioStrings().then((s) => (this.strings = s));
   }
 
@@ -160,6 +170,8 @@ export class RadioHud {
   }
 
   dispose(): void {
+    window.removeEventListener("resize", this.relayout);
+    window.removeEventListener("orientationchange", this.relayout);
     this.root.remove();
     for (const v of this.voices) try { v.stop(); } catch { /* already ended */ }
     this.voices.clear();

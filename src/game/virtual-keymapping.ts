@@ -1,5 +1,6 @@
 import type { Input } from "./input";
 import { PB_KEYS } from "./keymap";
+import { ICON, RADIO_ICONS, SLOT_ICONS } from "./virtual-icons";
 
 /**
  * Touchscreen controls for the PB web client.
@@ -25,6 +26,7 @@ export interface VirtualKeyMappingOptions {
   deadzone?: number;
   /** 0..1: per-axis threshold to press W/A/S/D. */
   directionThreshold?: number;
+  /** @deprecated Diabaikan: menu radio (Z/X/C + nomor) selalu tampil. */
   showRadio?: boolean;
   showControls?: boolean;
   /** Button opacity 0.25..1 (default 0.8). */
@@ -67,6 +69,24 @@ const clamp = (v: number, min: number, max: number) =>
 
 const TAP_MS = 70;
 
+/**
+ * Cara tombol radio mengirim key ke game:
+ *  "event"   = keydown / keyup sungguhan di document (sama seperti menekan keyboard di desktop)
+ *  "virtual" = Input.setVirtualKey (sama seperti tombol senjata 1-6)
+ * Kalau menu radio tidak terbuka dengan satu mode, coba mode yang lain.
+ */
+const RADIO_KEY_MODE: "event" | "virtual" = "event";
+
+/** Panel radio di layar menutup sendiri setelah sekian ms tanpa disentuh. */
+const RADIO_UI_TIMEOUT_MS = 6000;
+
+/** Nomor pilihan tiap menu radio, urutan sama dengan PB_KEYS.radio (Z, X, C). */
+const RADIO_OPTIONS: string[][] = [
+  ["1", "2", "3", "4", "5", "6", "7", "8", "0"], // Z
+  ["1", "2", "3", "4", "5", "6", "7", "8", "0"], // X
+  ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"], // C
+];
+
 /** On-screen button sizes in px (before scale): FIRE large, Q medium, everything else normal. */
 const BTN = { large: 96, medium: 60, normal: 52 } as const;
 
@@ -75,57 +95,8 @@ type PopoverElement = HTMLElement & {
   hidePopover?: () => void;
 };
 
-const svg = (d: string, extra = "") =>
-  `<svg viewBox="0 0 24 24"${extra}>${d}</svg>`;
-
-const ICON = {
-  // movement / combat
-  jump: svg('<path d="M6 13l6-6 6 6M6 19l6-6 6 6"/>'),
-  crouch: svg('<path d="M6 5l6 6 6-6M6 11l6 6 6-6"/>'),
-  reload: svg('<path d="M20 12a8 8 0 1 1-2.6-5.9M20 4v5h-5"/>'),
-  fire: svg('<circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>'),
-  aim: svg('<circle cx="12" cy="12" r="8"/><path d="M12 7v10M7 12h10"/>'),
-  walk: svg('<path d="M8.5 3.5c1.8 0 2.8 1.8 2.8 3.8S10.3 11 8.5 11 5.7 9.3 5.7 7.3 6.7 3.5 8.5 3.5zM7 13.5h3.5V15a1.75 1.75 0 0 1-3.5 0zM15.5 10c1.8 0 2.8 1.8 2.8 3.8s-1 3.7-2.8 3.7-2.8-1.7-2.8-3.7 1-3.8 2.8-3.8zM14 19.5h3.5V21H14z"/>'),
-  action: svg('<path d="M9 11V5.5a1.5 1.5 0 0 1 3 0V10M12 9.5a1.5 1.5 0 0 1 3 0V11M15 10.5a1.5 1.5 0 0 1 3 0V15a6 6 0 0 1-6 6h-.5a5.5 5.5 0 0 1-4.6-2.5L4.5 14.5a1.6 1.6 0 0 1 2.6-1.8L9 15"/>'),
-
-  // utility keys
-  swap: svg('<path d="M5 8h13l-3-3M19 16H6l3 3"/>'),
-  drop: svg('<path d="M12 4v11M7.5 11l4.5 4.5L16.5 11M5 20h14"/>'),
-  laser: svg('<circle cx="12" cy="12" r="2.2"/><path d="M3 12h5M16 12h5M12 3v5M12 16v5"/>'),
-  dual: svg('<rect x="3.5" y="7" width="7" height="10" rx="1.5"/><rect x="13.5" y="7" width="7" height="10" rx="1.5"/>'),
-
-  // weapon slots 1-6
-  rifle: svg('<path d="M2 12.5h13l2-2h5v3h-6l-1.5 2H10l-1 3.5H6l1-3.5H2z"/>'),
-  pistol: svg('<path d="M4 8.5h14.5v4.5H12v6.5H8.5V13H4z"/>'),
-  knife: svg('<path d="M4 20L17.5 6.5 20 4l-.5 4.5L13 15l-3 .5L8 18z"/>'),
-  grenade: svg('<circle cx="12" cy="14.5" r="6"/><path d="M10 8.5V5h4.5M14.5 5l2.5 1.5"/>'),
-  special: svg('<circle cx="12" cy="12" r="3"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.7 5.7l2.8 2.8M15.5 15.5l2.8 2.8M18.3 5.7l-2.8 2.8M8.5 15.5l-2.8 2.8"/>'),
-
-  // interface
-  menu: svg('<path d="M5 7h14M5 12h14M5 17h14"/>'),
-  score: svg('<rect x="4" y="5" width="16" height="14" rx="2"/><path d="M4 10h16M9.5 10v9"/>'),
-  chat: svg('<path d="M4 5.5h16V16H9.5L5 19.5V16H4z"/>'),
-  more: svg('<circle cx="6" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="18" cy="12" r="1.6" fill="currentColor"/>'),
-  send: svg('<path d="M21 3L10.5 13.5M21 3l-6.5 18-4-7.5L3 9.5z"/>'),
-};
-
-const SLOT_ICONS = [
-  ICON.rifle,
-  ICON.pistol,
-  ICON.knife,
-  ICON.grenade,
-  ICON.special,
-  "",
-];
-
 const cap = (icon: string, text: string) =>
   `${icon}<span class="vkm-cap">${text}</span>`;
-
-/** Actions that already have a dedicated button; every other PB_KEYS action goes to the "more" panel. */
-const USED_ACTIONS = new Set([
-  "forward", "back", "left", "right", "jump", "crouch", "walk", "reload",
-  "lastWeapon", "drop", "action", "extension", "extension2", "scoreboard", "slots", "radio",
-]);
 
 const esc = (t: string) => t.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
 
@@ -134,14 +105,6 @@ const keyLabel = (code: string): string => {
   const special: Record<string, string> = { Equal: "=", Minus: "-", Space: "SPC", Backquote: "`", Backslash: "\\", Slash: "/", Period: ".", Comma: ",", Semicolon: ";", Quote: "'", BracketLeft: "[", BracketRight: "]" };
   return special[code] ?? code.replace(/^(Key|Digit|Numpad|Arrow)/, "");
 };
-
-/** "teamChat" -> "Team chat" */
-const humanize = (name: string): string => {
-  const t = name.replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase();
-  return t.charAt(0).toUpperCase() + t.slice(1);
-};
-
-interface ExtraKey { name: string; code: string }
 
 /** Elements a finger must never "steal" from the page. */
 const INTERACTIVE =
@@ -155,7 +118,9 @@ export class VirtualKeyMapping {
   private joy: HTMLDivElement | null = null;
   private stick: HTMLDivElement | null = null;
   private sendBtn: HTMLButtonElement | null = null;
-  private morePanel: HTMLDivElement | null = null;
+  private radioRow: HTMLDivElement | null = null;
+  private radioNums: HTMLDivElement | null = null;
+  private radioTimer = 0;
 
   private abort: AbortController | null = null;
   private chatTimer = 0;
@@ -180,7 +145,6 @@ export class VirtualKeyMapping {
   private joystickSize: number;
   private deadzone: number;
   private directionThreshold: number;
-  private showRadio: boolean;
   private showControls: boolean;
   private opacity: number;
   private uiScale: number;
@@ -214,6 +178,11 @@ export class VirtualKeyMapping {
     action: PB_KEYS.action[0],
     extension: PB_KEYS.extension[0],
     extension2: PB_KEYS.extension2[0],
+    /** Ganti senjata (T): PB_KEYS.change dari keymap.ts, fallback keyboard T. */
+    dualWeapon:
+      (PB_KEYS as unknown as Record<string, string[] | undefined>).change?.[0] ??
+      (PB_KEYS as unknown as Record<string, string[] | undefined>).dualWeapon?.[0] ??
+      "KeyT",
     scoreboard: PB_KEYS.scoreboard[0],
   };
 
@@ -229,7 +198,6 @@ export class VirtualKeyMapping {
     this.deadzone = clamp(options.deadzone ?? 0.16, 0, 0.9);
     this.directionThreshold = clamp(options.directionThreshold ?? 0.3, 0.05, 0.95);
 
-    this.showRadio = options.showRadio ?? false;
     this.showControls = options.showControls ?? true;
 
     this.opacity = clamp(options.opacity ?? 0.8, 0.25, 1);
@@ -305,7 +273,6 @@ export class VirtualKeyMapping {
     this.joy = null;
     this.stick = null;
     this.sendBtn = null;
-    this.morePanel = null;
   }
 
   setEnabled(enabled: boolean): void {
@@ -722,11 +689,14 @@ export class VirtualKeyMapping {
 
   /** KeyboardEvent that also carries keyCode / which (many handlers still read them). */
   private makeKeyEvent(type: string, code: string): KeyboardEvent {
-    const keyCode = code === "Escape" ? 27 : code === "Enter" ? 13 : 0;
+    const letter = /^Key([A-Z])$/.exec(code)?.[1];
+    const digit = /^Digit([0-9])$/.exec(code)?.[1];
+    const keyCode =
+      code === "Escape" ? 27 : code === "Enter" ? 13 : letter ? letter.charCodeAt(0) : digit ? 48 + Number(digit) : 0;
 
     const ev = new KeyboardEvent(type, {
       code,
-      key: code,
+      key: letter ? letter.toLowerCase() : digit ?? code,
       bubbles: true,
       cancelable: true,
     });
@@ -745,7 +715,7 @@ export class VirtualKeyMapping {
   }
 
   /** Synthetic key for the game's own keydown listeners (Esc, Enter). */
-  private tapKeyEvent(code: string, target: EventTarget = document.body): void {
+  private tapKeyEvent(code: string, target: EventTarget = document.body, holdMs = 30): void {
     target.dispatchEvent(this.makeKeyEvent("keydown", code));
 
     if (code === "Enter") {
@@ -754,7 +724,7 @@ export class VirtualKeyMapping {
 
     window.setTimeout(
       () => target.dispatchEvent(this.makeKeyEvent("keyup", code)),
-      30,
+      holdMs,
     );
   }
 
@@ -992,36 +962,44 @@ export class VirtualKeyMapping {
         border-radius: 10px;
       }
       .vkm-util  { left: var(--vkm-l); top: calc(var(--vkm-t) + 4px); }
-      .vkm-radio { left: var(--vkm-l); top: calc(var(--vkm-t) + 4px + 44px * var(--vkm-s)); }
       .vkm-weap  { right: var(--vkm-r); top: var(--vkm-t); }
+      /* Menu radio: [RADIO] -> Z X C -> nomor pilihan */
+      .vkm-radio .vkm-radio-grp { display: none; }
+      .vkm-radio.vkm-open .vkm-radio-grp { display: flex; }
+      .vkm-radio-menu[aria-pressed="true"] { border-color: var(--vkm-accent); }
+      .vkm-radio-nums {
+        position: absolute;
+        left: var(--vkm-l);
+        top: calc(var(--vkm-t) + 4px + 44px * var(--vkm-s));
+        display: none;
+        grid-template-columns: repeat(5, calc(36px * var(--vkm-s)));
+        gap: calc(6px * var(--vkm-s));
+        pointer-events: none;
+      }
+      .vkm-radio-nums.vkm-open { display: grid; }
+      .vkm-radio-nums .vkm-btn {
+        position: relative;
+        width: calc(36px * var(--vkm-s));
+        height: calc(36px * var(--vkm-s));
+        border-radius: 10px;
+      }
+      .vkm-above-joy {
+        left: calc(var(--vkm-l) + var(--vkm-size) / 2);
+        bottom: calc(var(--vkm-b) + var(--vkm-size) + 10px * var(--vkm-s));
+        transform: translateX(-50%);
+        gap: calc(10px * var(--vkm-s));
+      }
+      .vkm-above-joy .vkm-btn {
+        width: calc(44px * var(--vkm-s));
+        height: calc(44px * var(--vkm-s));
+        border-radius: 50%;
+      }
       .vkm-weap .vkm-btn {
         width: calc(34px * var(--vkm-s));
         height: calc(34px * var(--vkm-s));
       }
 
-      /* ---------- "More keys" panel (every PB_KEYS action without its own button) ---------- */
-      .vkm-more {
-        position: absolute;
-        top: calc(var(--vkm-t) + 42px * var(--vkm-s));
-        left: 50%;
-        transform: translateX(-50%);
-        display: none;
-        flex-wrap: wrap;
-        justify-content: center;
-        gap: calc(6px * var(--vkm-s));
-        max-width: 60vw;
-        pointer-events: none;
-        z-index: 4;
-      }
-      .vkm-more.vkm-open { display: flex; }
-      .vkm-more .vkm-btn {
-        position: relative;
-        width: calc(38px * var(--vkm-s));
-        height: calc(38px * var(--vkm-s));
-        border-radius: 10px;
-      }
       .vkm-k { font-size: calc(13px * var(--vkm-s)); font-weight: 800; pointer-events: none; }
-      .vkm-more-btn[aria-pressed="true"] { border-color: var(--vkm-accent); }
 
       /* ---------- Joystick ---------- */
       .vkm-ghost,
@@ -1158,7 +1136,6 @@ export class VirtualKeyMapping {
     if (this.showControls) {
       this.createUtilityButtons();
       this.createWeaponButtons();
-      if (this.showRadio) this.createRadioButtons();
       this.createActionButtons();
     }
 
@@ -1247,70 +1224,7 @@ export class VirtualKeyMapping {
       onTap: () => this.tapKeyEvent("Enter"),
     });
 
-    const extras = this.extraKeys();
-
-    if (extras.length) {
-      const panel = this.createMorePanel(extras);
-
-      this.makeButton(bar, {
-        label: "Tombol lain",
-        html: ICON.more,
-        className: "vkm-keep",
-        onTap: () => {
-          const open = panel.classList.toggle("vkm-open");
-          this.root?.querySelector(".vkm-more-btn")?.setAttribute("aria-pressed", String(open));
-        },
-      }).classList.add("vkm-more-btn");
-    }
-
     this.hud!.appendChild(bar);
-  }
-
-  /**
-   * Every keyboard action of PB_KEYS that has no dedicated button (minimap zoom, chat variants,
-   * voice, ...), plus the radio keys when the radio row is off, so no key is unreachable on touch.
-   */
-  private extraKeys(): ExtraKey[] {
-    const out: ExtraKey[] = [];
-    const usable = (code: unknown): code is string =>
-      typeof code === "string" && code !== "" && !/^(Mouse|Wheel)/i.test(code);
-
-    for (const [name, value] of Object.entries(PB_KEYS as unknown as Record<string, unknown>)) {
-      if (USED_ACTIONS.has(name)) continue;
-
-      const code = Array.isArray(value) ? value[0] : value;
-      if (usable(code)) out.push({ name, code });
-    }
-
-    if (!this.showRadio) {
-      PB_KEYS.radio.forEach((code, i) => {
-        if (usable(code)) out.push({ name: `radio${i + 1}`, code });
-      });
-    }
-
-    return out;
-  }
-
-  private createMorePanel(extras: ExtraKey[]): HTMLDivElement {
-    const panel = document.createElement("div");
-    panel.className = "vkm-more";
-    this.morePanel = panel;
-
-    for (const { name, code } of extras) {
-      const label = humanize(name);
-
-      this.makeButton(panel, {
-        label,
-        html: `<span class="vkm-k">${esc(keyLabel(code))}</span><span class="vkm-cap">${esc(label.slice(0, 7))}</span>`,
-        className: "vkm-num",
-        key: code,
-        hold: true,
-      });
-    }
-
-    this.hud!.appendChild(panel);
-
-    return panel;
   }
 
   private createUtilityButtons(): void {
@@ -1319,13 +1233,23 @@ export class VirtualKeyMapping {
 
     const items: Array<[html: string, key: string, label: string]> = [
       [cap(ICON.drop, "G"), this.keys.drop, "Buang senjata"],
-      [cap(ICON.laser, "B"), this.keys.extension, "Laser"],
-      [cap(ICON.dual, "F"), this.keys.extension2, "Dual"],
     ];
 
     for (const [html, key, label] of items) {
       this.makeButton(row, { label, html, key, className: "vkm-num" });
     }
+
+    // T: ganti senjata. Game membacanya dari event keyboard (sama seperti di desktop),
+    // jadi dikirim sebagai keydown + keyup sungguhan, bukan virtual key.
+    this.makeButton(row, {
+      label: "Ganti senjata",
+      html: cap(ICON.weaponMenu, keyLabel(this.keys.dualWeapon)),
+      className: "vkm-num",
+      onTap: () => this.tapKeyEvent(this.keys.dualWeapon, document.body, TAP_MS),
+    });
+
+    // Menu radio ada di baris yang sama: G · T · RADIO · (Z X C)
+    this.createRadioButtons(row);
 
     this.hud!.appendChild(row);
   }
@@ -1348,20 +1272,103 @@ export class VirtualKeyMapping {
     this.hud!.appendChild(row);
   }
 
-  private createRadioButtons(): void {
-    const row = document.createElement("div");
-    row.className = "vkm-row vkm-radio";
+  /** Menekan satu key sekali (tap), lewat mode RADIO_KEY_MODE. */
+  private pressKey(code: string): void {
+    if (RADIO_KEY_MODE === "event") {
+      this.tapKeyEvent(code, document.body, TAP_MS);
+      return;
+    }
+
+    this.input.setVirtualKey(code, true);
+
+    const release = () => {
+      window.clearTimeout(timer);
+      this.releasers.delete(release);
+      this.input.setVirtualKey(code, false);
+    };
+    const timer = window.setTimeout(release, TAP_MS);
+    this.releasers.add(release);
+  }
+
+  /**
+   * Menu radio: [RADIO] -> tampil Z / X / C -> menu radio game terbuka -> tampil nomor pilihan
+   * grup itu (Z: 1-8,0 · X: 1-8,0 · C: 1-9,0) -> pilih nomor -> tutup.
+   */
+  private createRadioButtons(row: HTMLDivElement): void {
+    row.classList.add("vkm-radio");
+    this.radioRow = row;
+
+    this.makeButton(row, {
+      label: "Menu radio",
+      html: ICON.radioMenu,
+      className: "vkm-num vkm-radio-menu",
+      onTap: () => this.toggleRadioUi(),
+    });
 
     PB_KEYS.radio.forEach((code, index) => {
       this.makeButton(row, {
-        label: `Radio ${index + 1}`,
-        html: ["Z", "X", "C"][index],
-        key: code,
-        className: "vkm-num",
+        label: `Radio ${keyLabel(code)}`,
+        html: cap(RADIO_ICONS[index] ?? ICON.radioMenu, esc(keyLabel(code))),
+        className: "vkm-num vkm-radio-grp",
+        onTap: () => this.openRadioGroup(index, code),
       });
     });
 
-    this.hud!.appendChild(row);
+    const nums = document.createElement("div");
+    nums.className = "vkm-radio-nums";
+    this.radioNums = nums;
+
+    this.hud!.appendChild(nums);
+  }
+
+  private toggleRadioUi(): void {
+    if (this.radioRow?.classList.contains("vkm-open") || this.radioNums?.classList.contains("vkm-open")) {
+      this.closeRadioUi();
+      return;
+    }
+
+    this.radioRow?.classList.add("vkm-open");
+    this.radioRow?.querySelector(".vkm-radio-menu")?.setAttribute("aria-pressed", "true");
+    this.armRadioTimer();
+  }
+
+  private openRadioGroup(index: number, code: string): void {
+    const nums = this.radioNums;
+
+    if (!nums) return;
+
+    this.pressKey(code);
+
+    nums.textContent = "";
+
+    for (const n of RADIO_OPTIONS[index] ?? RADIO_OPTIONS[0]) {
+      this.makeButton(nums, {
+        label: `Radio ${keyLabel(code)} ${n}`,
+        html: `<span class="vkm-k">${n}</span>`,
+        className: "vkm-num",
+        onTap: () => {
+          this.pressKey(`Digit${n}`);
+          this.closeRadioUi();
+        },
+      });
+    }
+
+    this.radioRow?.classList.remove("vkm-open");
+    nums.classList.add("vkm-open");
+    this.armRadioTimer();
+  }
+
+  private armRadioTimer(): void {
+    window.clearTimeout(this.radioTimer);
+    this.radioTimer = window.setTimeout(() => this.closeRadioUi(), RADIO_UI_TIMEOUT_MS);
+  }
+
+  private closeRadioUi(): void {
+    window.clearTimeout(this.radioTimer);
+
+    this.radioRow?.classList.remove("vkm-open");
+    this.radioRow?.querySelector(".vkm-radio-menu")?.setAttribute("aria-pressed", "false");
+    this.radioNums?.classList.remove("vkm-open");
   }
 
   private createActionButtons(): void {
@@ -1429,6 +1436,26 @@ export class VirtualKeyMapping {
       hold: true,
       br: { x: 84, y: 146, size: BTN.normal },
     });
+
+    // F (extension2 / Dual) dan B (extension / Laser): satu baris sejajar, tepat di atas analog
+    const joyKeys = document.createElement("div");
+    joyKeys.className = "vkm-row vkm-above-joy";
+
+    this.makeButton(joyKeys, {
+      label: "Dual",
+      html: cap(ICON.dual, "F"),
+      className: "vkm-round",
+      key: this.keys.extension2,
+    });
+
+    this.makeButton(joyKeys, {
+      label: "Laser",
+      html: cap(ICON.laser, "B"),
+      className: "vkm-round",
+      key: this.keys.extension,
+    });
+
+    hud.appendChild(joyKeys);
 
     this.makeButton(hud, {
       label: "Jalan pelan",
@@ -1960,6 +1987,7 @@ export class VirtualKeyMapping {
 
   private releaseAll(): void {
     this.resetJoystick();
+    this.closeRadioUi();
 
     for (const release of [...this.releasers]) {
       release();
