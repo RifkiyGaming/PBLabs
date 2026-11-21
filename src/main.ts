@@ -4,6 +4,7 @@ import { lockPointer } from "./lockPointer.ts";
 import { Game, type GameDeps } from "./game/game";
 import { Input } from "./game/input";
 import { createVirtualControls } from "./game/createVirtualControls";
+import { ICON } from "./game/virtual-icons";
 import { buildTestLevel } from "./testLevel";
 import { buildRealLevel } from "./realLevel";
 import { setCompressedTextureSupport } from "./render/compressedTex";
@@ -355,12 +356,17 @@ export async function startGame(opts: StartGameOptions = {}): Promise<GameHandle
   const row = (k: string, t: string) =>
     `<div class="ov-row"><span class="ov-key">${k}</span><span>${t}</span></div>`;
 
-  const kn = (k: keyof typeof PB_KEYS) =>
-    PB_KEYS[k][0]
+  const kn = (k: string, fallback = "?") =>
+    ((PB_KEYS as unknown as Record<string, string[] | undefined>)[k]?.[0] ?? fallback)
       .replace(/^(Key|Digit)/, "")
       .replace(/(Left|Right)$/, "")
       .replace("Control", "Ctrl")
       .replace("Space", "Espaço");
+
+  // Panel info desktop + mobile dari satu tabel: sama dengan kontrol virtual (game/virtual-keymapping.ts).
+  // Desktop = nama tombol keyboard / mouse; layar sentuh = icon tombol yang sama persis dengan di layar.
+  const touch = navigator.maxTouchPoints > 0 || window.matchMedia("(pointer: coarse)").matches;
+  const ctl = (desktop: string, icon: string, text: string) => row(touch ? icon : desktop, text);
 
   // "Click to Play" panel: compact on every screen (desktop too), like the rest of the HUD.
   // (the .ov-* rules live in the page CSS, so these overrides win with !important)
@@ -379,6 +385,7 @@ export async function startGame(opts: StartGameOptions = {}): Promise<GameHandle
       #blocker .ov-group { text-align: left !important; }
       #blocker .ov-row { gap: 4px !important; padding: 0 !important; font-size: 9px !important; line-height: 1.25 !important; }
       #blocker .ov-key { min-width: 0 !important; padding: 1px 4px !important; font-size: 8px !important; }
+      #blocker .ov-key svg { width: 11px !important; height: 11px !important; display: block !important; fill: none !important; stroke: currentColor !important; stroke-width: 2.2 !important; stroke-linecap: round !important; stroke-linejoin: round !important; }
       #blocker .ov-leave { margin-top: 4px !important; padding: 4px 12px !important; min-height: 0 !important; font-size: 10px !important; }
     `;
     document.head.appendChild(st);
@@ -387,11 +394,31 @@ export async function startGame(opts: StartGameOptions = {}): Promise<GameHandle
   blocker.innerHTML =
     `<div class="ov-panel"><div class="ov-logo"><img src="/assets/ui/cross/brand/logo.png" alt="PB LABS" draggable="false"></div>` +
     `<div class="ov-meta"><span>${MAP_LABELS[map]}</span><span class="ov-sep">·</span><span>${opts.match?.mode === "BOMB" ? "Bomb Mission" : "Deathmatch"}</span></div>` +
-    `<button class="ov-play" type="button">Click to Play</button><div class="ov-controls">` +
-    `<div class="ov-group"><h3>Movement</h3>${row("WASD", "Move")}${row(kn("walk"), "Walk (Silent)")}${row(kn("crouch"), "Crouch")}${row(kn("jump"), "Jump")}</div>` +
-    `<div class="ov-group"><h3>Combat</h3>${row("L. Click", "Fire")}${row("R. Click", "Aim")}${row(kn("reload"), "Reload")}${row(kn("drop"), "Drop Weapon")}</div>` +
-    `<div class="ov-group"><h3>Weapons</h3>${row("1-5", "Select")}${row("Wheel", "Switch")}${row(kn("lastWeapon"), "Last Weapon")}${row(kn("extension"), "Extension (Laser)")}</div>` +
-    `<div class="ov-group"><h3>Interface</h3>${row("Tab", "Scoreboard")}${row("Esc", "Menu")}${row("Enter", "Chat")}${row(PB_KEYS.radio.map((c) => c.slice(3)).join(" "), "Radio")}</div></div>` +
+    `<button class="ov-play" type="button">${touch ? "Tap to Play" : "Click to Play"}</button><div class="ov-controls">` +
+    `<div class="ov-group"><h3>Movement</h3>` +
+      `${row(touch ? "Analog" : "WASD", "Move")}` +
+      `${touch ? row("Drag", "Look") : ""}` +
+      `${ctl(kn("walk"), ICON.walk, "Walk (Silent)")}` +
+      `${ctl(kn("crouch"), ICON.crouch, "Crouch")}` +
+      `${ctl(kn("jump"), ICON.jump, "Jump")}</div>` +
+    `<div class="ov-group"><h3>Combat</h3>` +
+      `${ctl("L. Click", ICON.fire, "Fire")}` +
+      `${ctl("R. Click", ICON.aim, "Aim")}` +
+      `${ctl(kn("reload"), ICON.reload, "Reload")}` +
+      `${ctl(kn("action"), ICON.action, "Action (Bomb)")}` +
+      `${ctl(kn("drop"), ICON.drop, "Drop Weapon")}</div>` +
+    `<div class="ov-group"><h3>Weapons</h3>` +
+      `${ctl("1-5", ICON.rifle, "Select")}` +
+      `${touch ? "" : row("Wheel", "Switch")}` +
+      `${ctl(kn("lastWeapon"), ICON.swap, "Last Weapon")}` +
+      `${ctl(kn("change", "KeyT"), ICON.weaponMenu, "Change Weapon")}` +
+      `${ctl(kn("extension"), ICON.laser, "Extension (Laser)")}` +
+      `${ctl(kn("extension2"), ICON.dual, "Dual")}</div>` +
+    `<div class="ov-group"><h3>Interface</h3>` +
+      `${ctl("Tab", ICON.score, "Scoreboard")}` +
+      `${ctl("Esc", ICON.menu, "Menu")}` +
+      `${ctl("Enter", ICON.chat, "Chat")}` +
+      `${ctl(PB_KEYS.radio.map((c) => c.slice(3)).join(" "), ICON.radioMenu, touch ? "Radio (Z/X/C + 1-0)" : "Radio")}</div></div>` +
     (opts.onLeave ? `<button id="pbleave" class="ov-leave" type="button">Leave Match</button>` : "") +
     `</div>`;
 
@@ -407,8 +434,7 @@ export async function startGame(opts: StartGameOptions = {}): Promise<GameHandle
     invertY: false,
     joystickSize: 140,
     deadzone: 0.16,
-    directionThreshold: 0.3,
-    showRadio: false
+    directionThreshold: 0.3
   });
 
   let game: Game;

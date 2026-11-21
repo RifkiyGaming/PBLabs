@@ -95,11 +95,6 @@ type PopoverElement = HTMLElement & {
   hidePopover?: () => void;
 };
 
-const cap = (icon: string, text: string) =>
-  `${icon}<span class="vkm-cap">${text}</span>`;
-
-const esc = (t: string) => t.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
-
 /** "KeyG" -> "G", "Digit5" -> "5", "NumpadAdd" -> "Add", "Equal" -> "=" */
 const keyLabel = (code: string): string => {
   const special: Record<string, string> = { Equal: "=", Minus: "-", Space: "SPC", Backquote: "`", Backslash: "\\", Slash: "/", Period: ".", Comma: ",", Semicolon: ";", Quote: "'", BracketLeft: "[", BracketRight: "]" };
@@ -832,8 +827,8 @@ export class VirtualKeyMapping {
       .vkm-btn:focus { outline: none; }
 
       .vkm-btn svg {
-        width: 46%;
-        height: 46%;
+        width: 56%;
+        height: 56%;
         fill: none;
         stroke: currentColor;
         stroke-width: 2.2;
@@ -855,13 +850,6 @@ export class VirtualKeyMapping {
         pointer-events: none;
       }
       .vkm-slotnum { font-size: calc(14px * var(--vkm-s)); }
-
-      .vkm-cap {
-        font-size: calc(8px * var(--vkm-s));
-        font-weight: 700;
-        opacity: .75;
-        pointer-events: none;
-      }
 
       .vkm-btn.vkm-on {
         opacity: 1;
@@ -1232,7 +1220,7 @@ export class VirtualKeyMapping {
     row.className = "vkm-row vkm-util";
 
     const items: Array<[html: string, key: string, label: string]> = [
-      [cap(ICON.drop, "G"), this.keys.drop, "Buang senjata"],
+      [ICON.drop, this.keys.drop, "Buang senjata"],
     ];
 
     for (const [html, key, label] of items) {
@@ -1243,7 +1231,7 @@ export class VirtualKeyMapping {
     // jadi dikirim sebagai keydown + keyup sungguhan, bukan virtual key.
     this.makeButton(row, {
       label: "Ganti senjata",
-      html: cap(ICON.weaponMenu, keyLabel(this.keys.dualWeapon)),
+      html: ICON.weaponMenu,
       className: "vkm-num",
       onTap: () => this.tapKeyEvent(this.keys.dualWeapon, document.body, TAP_MS),
     });
@@ -1308,7 +1296,7 @@ export class VirtualKeyMapping {
     PB_KEYS.radio.forEach((code, index) => {
       this.makeButton(row, {
         label: `Radio ${keyLabel(code)}`,
-        html: cap(RADIO_ICONS[index] ?? ICON.radioMenu, esc(keyLabel(code))),
+        html: RADIO_ICONS[index] ?? ICON.radioMenu,
         className: "vkm-num vkm-radio-grp",
         onTap: () => this.openRadioGroup(index, code),
       });
@@ -1396,7 +1384,7 @@ export class VirtualKeyMapping {
 
     this.makeButton(hud, {
       label: "Lompat",
-      html: cap(ICON.jump, "JUMP"),
+      html: ICON.jump,
       className: "vkm-round",
       key: this.keys.jump,
       br: { x: 14, y: 242, size: BTN.normal },
@@ -1404,7 +1392,7 @@ export class VirtualKeyMapping {
 
     this.makeButton(hud, {
       label: "Jongkok",
-      html: cap(ICON.crouch, "CROUCH"),
+      html: ICON.crouch,
       className: "vkm-round",
       key: this.keys.crouch,
       hold: true,
@@ -1414,7 +1402,7 @@ export class VirtualKeyMapping {
     // Q (last weapon): bottom of the left column, below CROUCH
     this.makeButton(hud, {
       label: "Senjata terakhir",
-      html: cap(ICON.swap, "Q"),
+      html: ICON.swap,
       className: "vkm-round",
       key: this.keys.lastWeapon,
       br: { x: 10, y: 108, size: BTN.medium },
@@ -1422,7 +1410,7 @@ export class VirtualKeyMapping {
 
     this.makeButton(hud, {
       label: "Reload",
-      html: cap(ICON.reload, "R"),
+      html: ICON.reload,
       className: "vkm-round",
       key: this.keys.reload,
       br: { x: 112, y: 76, size: BTN.normal },
@@ -1430,7 +1418,7 @@ export class VirtualKeyMapping {
 
     this.makeButton(hud, {
       label: "Aksi",
-      html: cap(ICON.action, "E"),
+      html: ICON.action,
       className: "vkm-round",
       key: this.keys.action,
       hold: true,
@@ -1443,14 +1431,14 @@ export class VirtualKeyMapping {
 
     this.makeButton(joyKeys, {
       label: "Dual",
-      html: cap(ICON.dual, "F"),
+      html: ICON.dual,
       className: "vkm-round",
       key: this.keys.extension2,
     });
 
     this.makeButton(joyKeys, {
       label: "Laser",
-      html: cap(ICON.laser, "B"),
+      html: ICON.laser,
       className: "vkm-round",
       key: this.keys.extension,
     });
@@ -1459,7 +1447,7 @@ export class VirtualKeyMapping {
 
     this.makeButton(hud, {
       label: "Jalan pelan",
-      html: cap(ICON.walk, "WALK"),
+      html: ICON.walk,
       className: "vkm-round",
       key: this.keys.walk,
       hold: true,
