@@ -428,13 +428,17 @@ export async function startGame(opts: StartGameOptions = {}): Promise<GameHandle
   const input = new Input(document.body);
 
   // Mount virtual controls only on touch-capable devices.
+  // Small phones (short side < 500px, e.g. landscape ~800x360) get a smaller
+  // control scale so the joystick + FIRE cluster do not crowd the screen.
+  const smallScreen = Math.min(window.innerWidth, window.innerHeight) < 500;
   const virtualControls = createVirtualControls(input, {
     sensitivityX: 1.8,
     sensitivityY: 1.4,
     invertY: false,
     joystickSize: 140,
     deadzone: 0.16,
-    directionThreshold: 0.3
+    directionThreshold: 0.3,
+    scale: smallScreen ? 0.8 : 1
   });
 
   let game: Game;

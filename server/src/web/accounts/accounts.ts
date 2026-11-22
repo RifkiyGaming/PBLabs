@@ -58,7 +58,7 @@ export async function registerAccount(username: string, password: string, email?
 
     const inserted = await client.query(
       `INSERT INTO accounts (username, password, nickname, email, token, gold, cash, access_level)
-       VALUES ($1, $2, $3, $4, $5, 100000, 80000, 0)
+       VALUES ($1, $2, $3, $4, $5, 100000, 100000, 0)
        RETURNING player_id, nickname`,
       [username, accountsPassword, username, accountEmail, storedToken(token)],
     );
